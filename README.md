@@ -38,10 +38,23 @@ RetailSense is an AI-powered heatmap analysis system that helps retailers visual
     cd IT332-RetailSense
     ```
 2.  Create and activate a virtual environment (recommended):
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-    ```
+    *   **Create the environment:**
+        ```bash
+        python -m venv .venv
+        ```
+    *   **Activate the environment:**
+        *   **Windows (PowerShell):**
+            ```powershell
+            .\.venv\Scripts\Activate.ps1
+            ```
+        *   **Windows (Command Prompt):**
+            ```cmd
+            .\.venv\Scripts\activate.bat
+            ```
+        *   **macOS / Linux (bash/zsh):**
+            ```bash
+            source .venv/bin/activate
+            ```
 3.  Install dependencies:
     ```bash
     pip install -r requirements.txt
@@ -53,15 +66,42 @@ RetailSense is an AI-powered heatmap analysis system that helps retailers visual
 
 ## Usage
 
-*(Provide instructions on how to run and use your application. For example:)*
+This section guides you on how to run the main heatmap generation script (`Object_heatMaps.py`).
+
+1.  **Navigate to the project root directory** (`IT332-RetailSense`) in your terminal if you are not already there.
+
+2.  **Activate the virtual environment.** This step is crucial to ensure you are using the project-specific dependencies (if not already active from the installation steps).
+    *   **Windows (PowerShell):**
+        ```powershell
+        .\.venv\Scripts\Activate.ps1
+        ```
+    *   **Windows (Command Prompt):**
+        ```cmd
+        .\.venv\Scripts\activate.bat
+        ```
+    *   **macOS / Linux (bash/zsh):**
+        ```bash
+        source .venv/bin/activate
+        ```
+
+3.  **Run the heatmap generation script:**
+    Once the virtual environment is active (you should see `(.venv)` at the start of your prompt), run the script:
+    ```bash
+    python backend\Heatmap Maker\Object_heatMaps.py
+    ```
+
+**Additional Information:**
 
 -   How to process a video file.
 -   How to view generated heatmaps.
 -   How to access the analytics dashboard (if applicable).
+-   Ensure your input video (e.g., `Mall.mp4` as configured in `Object_heatMaps.py`) is in the `videos/Sample Videos/` directory.
+-   Ensure your `floorplan.png` (as configured) is in the `Images/Sample Images/` directory.
+-   Ensure `floorplan_points.txt` (as configured) is in the `Points/` directory. You may need to run `pointMaker.py` first to define the perspective points for your floorplan:
+    ```bash
+    python "backend\Floorplan Point Maker\pointMaker.py"
+    ```
 
-```bash
-
-```
 ## 🤝 TEAM
 
 Rigel L. Baltazar
