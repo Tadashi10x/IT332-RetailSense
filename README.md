@@ -27,6 +27,7 @@ RetailSense is an AI-powered heatmap analysis system that helps retailers visual
 ### Prerequisites
 
 *Python*
+*pip install opencv-python numpy ultralytics*
 *pip install -r requirements.txt*
 
 ### Installation
@@ -45,7 +46,10 @@ RetailSense is an AI-powered heatmap analysis system that helps retailers visual
     ```bash
     pip install -r requirements.txt
     ```
-4.  *(Add any other setup steps, like environment variable configuration, database setup, etc.)*
+4.  Deactive if you are done:
+    ```bash
+    deactivate
+    ```
 
 ## Usage
 
