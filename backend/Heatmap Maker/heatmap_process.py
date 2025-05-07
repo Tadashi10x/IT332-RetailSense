@@ -6,6 +6,8 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 import threading # For simple background tasks (for production, use Celery)
 from flask_cors import CORS # Import CORS
+import sqlite3
+import datetime
 
 # Imports needed for generate_heatmap_and_video
 import cv2
@@ -23,7 +25,8 @@ def generate_heatmap_and_video(
     final_colormap=cv2.COLORMAP_JET,
     floorplan_blend_alpha: float = 0.7,
     heatmap_blend_alpha: float = 0.3,
-    default_fps: int = 25
+    default_fps: int = 25,
+    progress_callback=None # New argument for progress reporting
 ):
     """
     Generates a heatmap overlay on a floorplan from a video and corresponding points.
@@ -31,6 +34,8 @@ def generate_heatmap_and_video(
     """
     for f_path in [input_video_path, input_floorplan_path, input_points_path]:
         if not os.path.exists(f_path):
+            if progress_callback:
+                progress_callback(f"Error: Input file not found: {f_path}")
             raise FileNotFoundError(f"Input file not found: {f_path}")
 
     os.makedirs(os.path.dirname(output_heatmap_image_path), exist_ok=True)
@@ -38,10 +43,16 @@ def generate_heatmap_and_video(
 
     floorplan = cv2.imread(input_floorplan_path)
     if floorplan is None:
+        if progress_callback:
+            progress_callback(f"Error loading floorplan image from {input_floorplan_path}")
         raise ValueError(f"Error loading floorplan image from {input_floorplan_path}")
 
+    if progress_callback:
+        progress_callback("Loading video...")
     cap = cv2.VideoCapture(input_video_path)
     if not cap.isOpened():
+        if progress_callback:
+            progress_callback(f"Error reading video file from {input_video_path}")
         raise ValueError(f"Error reading video file from {input_video_path}")
 
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -55,6 +66,8 @@ def generate_heatmap_and_video(
     video_writer = cv2.VideoWriter(output_processed_video_path, fourcc, fps, (w, h))
     if not video_writer.isOpened():
         cap.release()
+        if progress_callback:
+            progress_callback(f"Error creating video writer for {output_processed_video_path}")
         raise ValueError(f"Error creating video writer for {output_processed_video_path}")
 
     camera_points = np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]], dtype=np.float32)
@@ -70,12 +83,18 @@ def generate_heatmap_and_video(
     except ValueError as e:
         cap.release()
         if video_writer.isOpened(): video_writer.release()
+        if progress_callback:
+            progress_callback(f"Error with floorplan points data from {input_points_path}: {e}")
         raise ValueError(f"Error with floorplan points data from {input_points_path}: {e}")
 
+    if progress_callback:
+        progress_callback("Calculating homography...")
     homography_matrix, _ = cv2.findHomography(camera_points, floorplan_points)
     if homography_matrix is None:
         cap.release()
         if video_writer.isOpened(): video_writer.release()
+        if progress_callback:
+            progress_callback("Could not compute homography matrix. Check your points.")
         raise ValueError("Could not compute homography matrix. Check your points.")
 
     heatmap_obj = solutions.Heatmap(
@@ -86,6 +105,8 @@ def generate_heatmap_and_video(
 
     floorplan_heatmap_acc = np.zeros_like(floorplan[:, :, 0], dtype=np.float32)
     frame_count = 0
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) # Get total frames if available
+    report_interval = max(1, total_frames // 20) if total_frames > 0 else 50 # Report progress roughly every 5% or 50 frames
 
     try:
         while cap.isOpened():
@@ -93,30 +114,36 @@ def generate_heatmap_and_video(
             if not success:
                 break
 
+            frame_count += 1
+            if progress_callback and frame_count % report_interval == 0:
+                progress_message = f"Processing frame {frame_count}"
+                if total_frames > 0:
+                    percent_complete = int((frame_count / float(total_frames)) * 100)
+                    progress_message += f" of approx {total_frames} ({percent_complete}%)"
+                progress_callback(progress_message)
             results = heatmap_obj(im0) # Process with Ultralytics Heatmap
             if results.plot_im is not None: # results.plot_im is the frame with heatmap/detections
                 video_writer.write(results.plot_im)
-                # For accumulated heatmap, use the heatmap data directly if available,
-                # or derive from plot_im if necessary.
-                # Assuming results.heatmap is the raw heatmap data for accumulation:
-                # If results.heatmap is not directly available, we might need to re-evaluate how to get
-                # the non-colored heatmap data from the 'solutions.Heatmap' object.
-                # For now, let's assume we can derive a grayscale representation for warping.
                 frame_heatmap_gray = cv2.cvtColor(results.plot_im, cv2.COLOR_BGR2GRAY).astype(np.float32)
                 warped_heatmap = cv2.warpPerspective(frame_heatmap_gray, homography_matrix, (floorplan.shape[1], floorplan.shape[0]))
                 floorplan_heatmap_acc += warped_heatmap
-            frame_count += 1
     finally:
         cap.release()
         if video_writer.isOpened():
             video_writer.release()
 
     if frame_count == 0:
+        if progress_callback:
+            progress_callback("Error: No frames were processed from the video.")
         raise ValueError("No frames were processed from the video. Video might be empty or corrupted.")
 
+    if progress_callback:
+        progress_callback("Normalizing and blending final heatmap...")
     floorplan_heatmap_acc = cv2.normalize(floorplan_heatmap_acc, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     colored_heatmap = cv2.applyColorMap(floorplan_heatmap_acc, final_colormap)
     blended_output = cv2.addWeighted(floorplan, floorplan_blend_alpha, colored_heatmap, heatmap_blend_alpha, 0)
+    if progress_callback:
+        progress_callback("Saving final heatmap image...")
     cv2.imwrite(output_heatmap_image_path, blended_output)
 
     return {
@@ -127,19 +154,43 @@ def generate_heatmap_and_video(
     }
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# Define the project root directory (two levels up from current_dir)
 PROJECT_ROOT_DIR = os.path.abspath(os.path.join(current_dir, "..", ".."))
 
+# --- Database Setup ---
+DATABASE_PATH = os.path.join(PROJECT_ROOT_DIR, 'heatmap_jobs.db')
 
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row # Access columns by name
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id TEXT PRIMARY KEY,
+            user TEXT NOT NULL,
+            input_video_name TEXT,
+            input_floorplan_name TEXT,
+            output_heatmap_path TEXT,
+            output_video_path TEXT,
+            status TEXT NOT NULL,
+            message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24) # Needed for session management; use a fixed, strong key in production
-
-CORS(app) # Enable CORS for all routes and all origins by default
+app.secret_key = os.urandom(24)
+CORS(app)
 
 # Configuration
-UPLOAD_FOLDER = os.path.join(PROJECT_ROOT_DIR, 'project_uploads') # Store uploaded files at project root
-RESULTS_FOLDER = os.path.join(PROJECT_ROOT_DIR, 'project_results') # Store generated heatmaps/videos at project root
+UPLOAD_FOLDER = os.path.join(PROJECT_ROOT_DIR, 'project_uploads')
+RESULTS_FOLDER = os.path.join(PROJECT_ROOT_DIR, 'project_results')
 ALLOWED_EXTENSIONS_VIDEO = {'mp4', 'avi', 'mov'}
 ALLOWED_EXTENSIONS_IMAGE = {'png', 'jpg', 'jpeg'}
 ALLOWED_EXTENSIONS_POINTS = {'txt'}
@@ -147,7 +198,7 @@ ALLOWED_EXTENSIONS_POINTS = {'txt'}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULTS_FOLDER, exist_ok=True)
 
-# In-memory job store (for simplicity; use a database for production)
+# In-memory job store for *active* jobs
 jobs = {}
 
 def allowed_file(filename, allowed_extensions):
@@ -158,81 +209,111 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'logged_in_user' not in session:
-            if request.is_json: # For API calls
+            if request.is_json:
                 return jsonify(error="Authentication required"), 401
-            return redirect(url_for('login', next=request.url))
+            return redirect(url_for('login_page', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
 
-# --- Authentication Routes ---
-
-
 def process_heatmap_task(job_id, input_video_path, input_floorplan_path, input_points_path,
                          output_heatmap_image_path, output_processed_video_path):
-    """
-    Worker function to run the heatmap generation.
-    This should be run in a separate thread or a task queue.
-    'generate_heatmap_and_video' should be available in the global scope
-    if it's defined in this file.
-    """
-    # This check will now correctly use the globally defined function
-    # or fail if it's truly not defined anywhere in this script.
+    
+    conn_thread = None # Initialize to None
+
+    def update_job_message_and_db(message):
+        nonlocal conn_thread # To modify the outer scope conn_thread
+        if job_id in jobs:
+            jobs[job_id]['message'] = message
+        
+        # Update DB
+        if not conn_thread: # Open connection if not already open for this thread
+             conn_thread = get_db_connection()
+        try:
+            conn_thread.execute("UPDATE jobs SET message = ?, updated_at = ? WHERE job_id = ?",
+                                (message, datetime.datetime.now(), job_id))
+            conn_thread.commit()
+        except sqlite3.Error as e:
+            print(f"DB Error during progress update for job {job_id}: {e}")
+
+
     if not generate_heatmap_and_video:
         jobs[job_id]['status'] = 'error'
-        jobs[job_id]['message'] = 'Heatmap processing function not available.'
+        db_message = 'Heatmap processing function not available.'
+        jobs[job_id]['message'] = db_message
+        conn_thread = get_db_connection()
+        conn_thread.execute("UPDATE jobs SET status = ?, message = ?, updated_at = ? WHERE job_id = ?",
+                     ('error', db_message, datetime.datetime.now(), job_id))
+        conn_thread.commit()
         return
 
     try:
         print(f"Job {job_id}: Starting heatmap generation...")
+        conn_thread = get_db_connection() # Open connection for this thread
+        initial_message = "Initializing heatmap generation..."
+        update_job_message_and_db(initial_message) # This will also update DB
+        conn_thread.execute("UPDATE jobs SET status = ?, updated_at = ? WHERE job_id = ?",
+                     ('processing', datetime.datetime.now(), job_id)) # Set status to processing
+        conn_thread.commit()
+
         result = generate_heatmap_and_video(
             input_video_path=input_video_path,
             input_floorplan_path=input_floorplan_path,
             input_points_path=input_points_path,
             output_heatmap_image_path=output_heatmap_image_path,
             output_processed_video_path=output_processed_video_path,
-            # You can pass other parameters from your function here if needed
+            progress_callback=update_job_message_and_db
         )
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['result'] = result
-        jobs[job_id]['message'] = result.get('message', 'Processing successful.')
+        db_message_final = result.get('message', 'Processing completed successfully.')
+        jobs[job_id]['message'] = db_message_final
+        conn_thread.execute("UPDATE jobs SET status = ?, message = ?, output_heatmap_path = ?, output_video_path = ?, updated_at = ? WHERE job_id = ?",
+                     ('completed', db_message_final, result['output_heatmap_image'], result['output_processed_video'], datetime.datetime.now(), job_id))
+        conn_thread.commit()
         print(f"Job {job_id}: Completed successfully.")
     except Exception as e:
         jobs[job_id]['status'] = 'error'
-        jobs[job_id]['message'] = str(e)
+        db_error_message = f"Error: {str(e)}"
+        update_job_message_and_db(db_error_message)
+        if conn_thread: # Ensure connection is open before trying to update status
+            conn_thread.execute("UPDATE jobs SET status = ?, updated_at = ? WHERE job_id = ?",
+                         ('error', datetime.datetime.now(), job_id))
+            conn_thread.commit()
         print(f"Job {job_id}: Error during processing - {str(e)}")
+    finally:
+        if conn_thread:
+            conn_thread.close()
+        # Optionally remove from in-memory active jobs after a delay or based on status
+        # if job_id in jobs and (jobs[job_id]['status'] == 'completed' or jobs[job_id]['status'] == 'error'):
+        #     # Consider a delay before removing to allow final status polls
+        #     pass
 
 
 # --- Static Page Routes (for serving HTML) ---
 @app.route('/')
 def index_page():
-    # This will serve as the entry point, redirecting to login or dashboard
     if 'logged_in_user' in session:
         return redirect(url_for('dashboard_page'))
     return redirect(url_for('login_page'))
 
 @app.route('/login', methods=['GET'])
 def login_page():
-    # Serves the login.html page
-    # Assuming login.html is in a 'templates' folder next to heatmap_process.py
-    # Or adjust path to your frontend/login.html
     frontend_dir = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "frontend"))
     return send_from_directory(frontend_dir, 'login.html')
 
 @app.route('/dashboard', methods=['GET'])
 @login_required
 def dashboard_page():
-    # Serves the dashboard.html page
     frontend_dir = os.path.abspath(os.path.join(PROJECT_ROOT_DIR, "frontend"))
     return send_from_directory(frontend_dir, 'dashboard.html')
 
 # --- API Routes ---
-
 @app.route('/api/login', methods=['POST'])
 def login_api():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    if username == 'admin' and password == 'admin': # Static credentials
+    if username == 'admin' and password == 'admin':
         session['logged_in_user'] = username
         return jsonify({"success": True, "message": "Login successful"})
     return jsonify({"success": False, "message": "Invalid credentials"}), 401
@@ -243,14 +324,12 @@ def logout_api():
     return jsonify({"success": True, "message": "Logged out successfully"})
 
 @app.route('/api/heatmap_jobs', methods=['POST'])
-@login_required # Protect this route
+@login_required
 def create_heatmap_job():
     if 'videoFile' not in request.files or \
        'floorplanFile' not in request.files:
-        # This is the correct check for files
         return jsonify({"error": "Missing videoFile or floorplanFile"}), 400
-
-    # Points will now come from 'pointsData' form field
+    
     points_data_str = request.form.get('pointsData')
     if not points_data_str:
         return jsonify({"error": "Missing pointsData"}), 400
@@ -261,7 +340,7 @@ def create_heatmap_job():
     if not (video_file.filename and allowed_file(video_file.filename, ALLOWED_EXTENSIONS_VIDEO)):
         return jsonify({"error": "Invalid video file type"}), 400
     if not (floorplan_file.filename and allowed_file(floorplan_file.filename, ALLOWED_EXTENSIONS_IMAGE)):
-        return jsonify({"error": "Invalid floorplan image file type"}), 400
+        return jsonify({"error": "Invalid floorplan image type"}), 400
  
     job_id = str(uuid.uuid4())
     job_upload_folder = os.path.join(UPLOAD_FOLDER, job_id)
@@ -271,7 +350,6 @@ def create_heatmap_job():
 
     video_filename = secure_filename(video_file.filename)
     floorplan_filename = secure_filename(floorplan_file.filename)
-    # We'll create a temporary points file on the server from pointsData
     points_filename = f"points_{job_id}.txt"
 
     input_video_path = os.path.join(job_upload_folder, video_filename)
@@ -281,21 +359,31 @@ def create_heatmap_job():
     video_file.save(input_video_path)
     floorplan_file.save(input_floorplan_path)
 
-    # Save the received pointsData to the temporary points file
     try:
         with open(input_points_path, 'w') as f:
             f.write(points_data_str)
     except IOError as e:
         return jsonify({"error": f"Could not write points file: {str(e)}"}), 500
 
-
-    # Define output paths
     output_heatmap_image_path = os.path.join(job_results_folder, f"heatmap_{job_id}.png")
     output_processed_video_path = os.path.join(job_results_folder, f"video_{job_id}.mp4")
 
+    conn = get_db_connection()
+    try:
+        conn.execute('''
+            INSERT INTO jobs (job_id, user, input_video_name, input_floorplan_name, status, message, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (job_id, session['logged_in_user'], video_filename, floorplan_filename, 'pending', 'Job submitted for processing.', datetime.datetime.now(), datetime.datetime.now()))
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error on job insert: {e}")
+        return jsonify({"error": "Failed to record job in database."}), 500
+    finally:
+        conn.close()
+
     jobs[job_id] = {
-        'status': 'processing',
-        'message': 'Job accepted and is being processed.',
+        'status': 'pending', # Will be updated by the thread
+        'message': 'Job submitted, awaiting processing.',
         'input_files': {
             'video': input_video_path,
             'floorplan': input_floorplan_path,
@@ -307,59 +395,94 @@ def create_heatmap_job():
         }
     }
 
-    # For production, use Celery or RQ for background tasks
     thread = threading.Thread(target=process_heatmap_task, args=(
         job_id, input_video_path, input_floorplan_path, input_points_path,
         output_heatmap_image_path, output_processed_video_path
     ))
     thread.start()
 
-    return jsonify({"job_id": job_id, "status": "processing", "message": "Job submitted for processing."}), 202
+    return jsonify({"job_id": job_id, "status": "pending", "message": "Job submitted for processing."}), 202
 
 @app.route('/api/heatmap_jobs/<job_id>/status', methods=['GET'])
-@login_required # Protect this route
+@login_required
 def get_job_status(job_id):
-    job = jobs.get(job_id)
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
-    return jsonify({"job_id": job_id, "status": job['status'], "message": job.get('message', '')})
+    job = jobs.get(job_id) 
+    if job:
+        return jsonify({"job_id": job_id, "status": job['status'], "message": job.get('message', '')})
+    else:
+        conn = get_db_connection()
+        db_job = conn.execute("SELECT job_id, status, message FROM jobs WHERE job_id = ? AND user = ?", (job_id, session['logged_in_user'])).fetchone()
+        conn.close()
+        if db_job:
+            return jsonify({"job_id": db_job['job_id'], "status": db_job['status'], "message": db_job['message']})
+        else:
+            return jsonify({"error": "Job not found or not authorized"}), 404
 
 @app.route('/api/heatmap_jobs/<job_id>/result/image', methods=['GET'])
-@login_required # Protect this route
+@login_required
 def get_heatmap_image(job_id):
     job = jobs.get(job_id)
-    if not job or job['status'] != 'completed':
-        return jsonify({"error": "Job not found or not completed"}), 404
-
-    output_image_path = job.get('result', {}).get('output_heatmap_image')
-    if not output_image_path or not os.path.exists(output_image_path):
-         output_image_path = job.get('output_files_expected', {}).get('image') # Fallback
-         if not output_image_path or not os.path.exists(output_image_path):
-            return jsonify({"error": "Result image not found"}), 404
+    output_image_path = None
+    if job and job['status'] == 'completed':
+        output_image_path = job.get('result', {}).get('output_heatmap_image')
+        if not output_image_path:
+             output_image_path = job.get('output_files_expected', {}).get('image')
+    
+    if not output_image_path: # If not in active jobs or not completed, check DB
+        conn = get_db_connection()
+        db_job = conn.execute("SELECT output_heatmap_path, status FROM jobs WHERE job_id = ? AND user = ?", (job_id, session['logged_in_user'])).fetchone()
+        conn.close()
+        if db_job and db_job['status'] == 'completed' and db_job['output_heatmap_path']:
+            output_image_path = db_job['output_heatmap_path']
+        else:
+            return jsonify({"error": "Job result image not found or job not completed"}), 404
+    
+    if not os.path.exists(output_image_path):
+        return jsonify({"error": "Result image file not found on server"}), 404
 
     return send_from_directory(os.path.dirname(output_image_path),
                                os.path.basename(output_image_path))
 
 @app.route('/api/heatmap_jobs/<job_id>/result/video', methods=['GET'])
-@login_required # Protect this route
+@login_required
 def get_processed_video(job_id):
     job = jobs.get(job_id)
-    if not job or job['status'] != 'completed':
-        return jsonify({"error": "Job not found or not completed"}), 404
+    output_video_path = None
+    if job and job['status'] == 'completed':
+        output_video_path = job.get('result', {}).get('output_processed_video')
+        if not output_video_path:
+            output_video_path = job.get('output_files_expected', {}).get('video')
 
-    output_video_path = job.get('result', {}).get('output_processed_video')
-    if not output_video_path or not os.path.exists(output_video_path):
-        output_video_path = job.get('output_files_expected', {}).get('video') # Fallback
-        if not output_video_path or not os.path.exists(output_video_path):
-            return jsonify({"error": "Result video not found"}), 404
-
+    if not output_video_path: # If not in active jobs or not completed, check DB
+        conn = get_db_connection()
+        db_job = conn.execute("SELECT output_video_path, status FROM jobs WHERE job_id = ? AND user = ?", (job_id, session['logged_in_user'])).fetchone()
+        conn.close()
+        if db_job and db_job['status'] == 'completed' and db_job['output_video_path']:
+            output_video_path = db_job['output_video_path']
+        else:
+            return jsonify({"error": "Job result video not found or job not completed"}), 404
+            
+    if not os.path.exists(output_video_path):
+        return jsonify({"error": "Result video file not found on server"}), 404
+                                   
     return send_from_directory(os.path.dirname(output_video_path),
                                os.path.basename(output_video_path),
-                               as_attachment=True) # To prompt download
+                               as_attachment=True)
+
+@app.route('/api/heatmap_jobs/history', methods=['GET'])
+@login_required
+def get_job_history():
+    conn = get_db_connection()
+    history_jobs_cursor = conn.execute('''
+        SELECT job_id, input_video_name, input_floorplan_name, status, message, created_at, updated_at
+        FROM jobs WHERE user = ? ORDER BY created_at DESC
+    ''', (session['logged_in_user'],))
+    history_jobs = [dict(row) for row in history_jobs_cursor.fetchall()]
+    conn.close()
+    return jsonify(history_jobs)
 
 if __name__ == '__main__':
-    # This check will now correctly use the globally defined function
-    # or fail if it's truly not defined anywhere in this script.
+    init_db() 
     if not generate_heatmap_and_video:
         print("CRITICAL: Heatmap processing function could not be loaded. The application might not work correctly.")
-    app.run(debug=True, port=5000) # Runs on http://127.0.0.1:5000/
+    app.run(debug=True, port=5000)

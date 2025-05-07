@@ -89,6 +89,7 @@ This section guides you on how to run the main heatmap generation script (`Objec
     ```bash
     python backend\Heatmap Maker\Object_heatMaps.py
     ```
+4. **Go to http://127.0.0.1:5000/ or http://localhost:8080/**
 
 **Additional Information:**
 
