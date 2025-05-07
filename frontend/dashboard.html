@@ -129,7 +129,7 @@
             <h2>Processing History</h2>
             <table id="historyTable" style="width:100%; border-collapse: collapse; margin-top:15px;">
                 <thead>
-                    <tr style="background-color:#f2f2f2; text-align:left;"><th style="padding:8px;">Job ID</th><th style="padding:8px;">Video</th><th style="padding:8px;">Floorplan</th><th style="padding:8px;">Status</th><th style="padding:8px;">Message/Result</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th></tr>
+                    <tr style="background-color:#f2f2f2; text-align:left;"><th style="padding:8px;">Job ID</th><th style="padding:8px;">Video</th><th style="padding:8px;">Floorplan</th><th style="padding:8px;">People</th><th style="padding:8px;">Status</th><th style="padding:8px;">Message</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th></tr>
                 </thead>
                 <tbody id="historyTableBody"></tbody>
             </table>
@@ -531,7 +531,7 @@
         async function fetchJobHistory() {
             const tableBody = document.getElementById('historyTableBody');
             const historyMessage = document.getElementById('historyMessage');
-            tableBody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:10px;">Loading history...</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:10px;">Loading history...</td></tr>'; // Updated colspan
             historyMessage.textContent = '';
 
             try {
@@ -556,6 +556,7 @@
                         row.insertCell().textContent = job.job_id.substring(0, 8) + "...";
                         row.insertCell().textContent = job.input_video_name || 'N/A';
                         row.insertCell().textContent = job.input_floorplan_name || 'N/A';
+                        row.insertCell().textContent = job.people_counted !== null ? job.people_counted : 'N/A';
                         row.insertCell().textContent = job.status;
                         row.insertCell().textContent = job.message || 'N/A';
                         row.insertCell().textContent = new Date(job.created_at).toLocaleString();
