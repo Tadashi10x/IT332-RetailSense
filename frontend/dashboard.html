@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Heatmap Generator</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        header { background-color: #007bff; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        header h1 { margin: 0; font-size: 1.5em; cursor: pointer; }
+        header button { background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+        header button:hover { background-color: #c82333; }
+        nav { background-color: #f8f9fa; padding: 10px 20px; border-bottom: 1px solid #dee2e6; }
+        nav button { background-color: transparent; border: none; padding: 10px 15px; cursor: pointer; font-size: 1em; }
+        nav button:disabled { color: #ccc; cursor: not-allowed; }
+        nav button.active { font-weight: bold; border-bottom: 2px solid #007bff; }
+        .content-section { display: none; /* Hidden by default */ }
+        .content-section.active { display: block; /* Show active section */ }
+        .container { flex-grow: 1; max-width: 800px; margin: 20px auto; padding: 20px; border-radius: 8px; } /* Removed border for sections */
+        label { display: block; margin-top: 10px; }
+        input[type="file"], button[type="submit"], .action-button { margin-top: 5px; padding: 8px 15px; border-radius: 4px; border: 1px solid #007bff; background-color: #007bff; color:white; cursor:pointer;}
+        input[type="file"] { border: 1px solid #ccc; background-color: white; color: black; }
+        button:disabled { background-color: #ccc; border-color: #ccc; cursor: not-allowed;}
+        #status, #results { margin-top: 20px; padding: 10px; border: 1px solid #eee; }
+        #heatmapImage { max-width: 100%; height: auto; margin-top: 10px; }
+        #pointMakerCanvas { border:1px solid #000; cursor:crosshair; max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 id="dashboardTitle">RetailSense Dashboard</h1>
+        <button id="logoutButton">Logout</button>
+    </header>
+
+    <nav>
+        <button id="navUploadFloorplan" class="nav-button">1. Upload Floorplan</button>
+        <button id="navConfigurePoints" class="nav-button">2. Configure Points</button>
+        <button id="navGenerateHeatmap" class="nav-button">3. Generate Heatmap</button>
+    </nav>
+
+    <div class="container">
+        <section id="sectionUploadFloorplan" class="content-section">
+            <h2>Step 1: Upload Floorplan</h2>
+            <p>Upload the floorplan image you want to use for the heatmap.</p>
+            <div>
+                <label for="floorplanUploadFile">Floorplan Image (PNG, JPG):</label>
+                <input type="file" id="floorplanUploadFile" accept=".png,.jpg,.jpeg">
+            </div>
+            <button id="submitFloorplanButton" class="action-button" style="margin-top:10px;">Next: Configure Points</button>
+            <div id="floorplanPreviewContainer" style="margin-top:20px; display:none;">
+                <h3>Floorplan Preview:</h3>
+                <img id="floorplanPreviewImage" src="#" alt="Floorplan Preview" style="max-width:100%; max-height:400px; border:1px solid #ccc;"/>
+            </div>
+        </section>
+
+        <section id="sectionConfigurePoints" class="content-section">
+            <h2>Step 2: Configure Points</h2>
+            <p>Click on the uploaded floorplan image to select 4 corresponding points. These points will be used for perspective transformation. Select points in order: Top-Left, Top-Right, Bottom-Right, Bottom-Left of the area in the video feed.</p>
+            <canvas id="pointMakerCanvas"></canvas>
+            <div id="pointsCoordinates" style="margin-top:10px;">
+                <p>Selected Points (up to 4):</p>
+                <ul id="pointsList"></ul>
+            </div>
+            <button id="resetPointsButton" class="action-button">Reset Points</button>
+            <button id="submitPointsButton" class="action-button" style="margin-top:10px;" disabled>Next: Generate Heatmap</button>
+        </section>
+
+        <section id="sectionGenerateHeatmap" class="content-section">
+            <h2>Step 3: Generate Heatmap</h2>
+            <p>Upload your video file. The floorplan and points you configured will be used.</p>
+            <form id="heatmapForm">
+                <div>
+                    <label for="videoFile">Video File (MP4, AVI):</label>
+                    <input type="file" id="videoFile" name="videoFile" accept=".mp4,.avi,.mov" required>
+                </div>
+                <button type="submit" style="margin-top:10px;">Generate Heatmap</button>
+            </form>
+
+            <div id="status">
+                <p>Status: Idle</p>
+            </div>
+
+            <div id="results" style="display:none;">
+                <h2>Results</h2>
+                <h3>Heatmap Image:</h3>
+                <img id="heatmapImage" src="" alt="Generated Heatmap">
+                <h3>Processed Video:</h3>
+                <a id="videoLink" href="#" download>Download Processed Video</a>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const backendUrl = 'http://127.0.0.1:5000';
+
+        // DOM Elements
+        const dashboardTitle = document.getElementById('dashboardTitle');
+        const logoutButton = document.getElementById('logoutButton');
+        const navButtons = document.querySelectorAll('.nav-button');
+        const contentSections = document.querySelectorAll('.content-section');
+
+        const floorplanUploadFile = document.getElementById('floorplanUploadFile');
+        const submitFloorplanButton = document.getElementById('submitFloorplanButton');
+        const floorplanPreviewContainer = document.getElementById('floorplanPreviewContainer');
+        const floorplanPreviewImage = document.getElementById('floorplanPreviewImage');
+
+        const pointMakerCanvas = document.getElementById('pointMakerCanvas');
+        const pointsList = document.getElementById('pointsList');
+        const resetPointsButton = document.getElementById('resetPointsButton');
+        const submitPointsButton = document.getElementById('submitPointsButton');
+        const ctx = pointMakerCanvas.getContext('2d');
+        let selectedFloorplanImage = null; // This will be an Image object
+        let floorplanPoints = []; // To store {x, y} relative to canvas
+        let originalFloorplanWidth = 0;
+        let originalFloorplanHeight = 0;
+
+
+        const heatmapForm = document.getElementById('heatmapForm');
+        const videoFile = document.getElementById('videoFile');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const heatmapImageElem = document.getElementById('heatmapImage');
+        const videoLinkElem = document.getElementById('videoLink');
+        let currentJobId = null;
+
+        // --- Navigation Logic ---
+        function showSection(sectionId) {
+            contentSections.forEach(section => {
+                section.classList.remove('active');
+                if (section.id === sectionId) {
+                    section.classList.add('active');
+                }
+            });
+            navButtons.forEach(button => {
+                button.classList.remove('active');
+                if (button.id === `nav${sectionId.replace('section', '')}`) {
+                    button.classList.add('active');
+                }
+            });
+             // Enable/disable nav buttons based on progress
+            document.getElementById('navConfigurePoints').disabled = !selectedFloorplanImage;
+            document.getElementById('navGenerateHeatmap').disabled = !(selectedFloorplanImage && floorplanPoints.length === 4);
+        }
+
+        dashboardTitle.addEventListener('click', () => showSection('sectionUploadFloorplan'));
+
+        navButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                if (button.disabled) return;
+                const targetSectionId = `section${button.id.replace('nav', '')}`;
+                showSection(targetSectionId);
+                if (targetSectionId === 'sectionConfigurePoints' && selectedFloorplanImage) {
+                    initializePointMaker();
+                }
+            });
+        });
+
+        logoutButton.addEventListener('click', async () => {
+            try {
+                await fetch(`${backendUrl}/api/logout`, { method: 'POST' });
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Logout failed. Please try again.');
+            }
+        });
+
+        // --- Step 1: Floorplan Upload Logic ---
+        floorplanUploadFile.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    floorplanPreviewImage.src = e.target.result;
+                    floorplanPreviewContainer.style.display = 'block';
+                    
+                    selectedFloorplanImage = new Image();
+                    selectedFloorplanImage.onload = () => {
+                        originalFloorplanWidth = selectedFloorplanImage.naturalWidth;
+                        originalFloorplanHeight = selectedFloorplanImage.naturalHeight;
+                        console.log("Floorplan image loaded. Original dims:", originalFloorplanWidth, "x", originalFloorplanHeight);
+                        document.getElementById('navConfigurePoints').disabled = false;
+                        floorplanPoints = []; // Reset points if new floorplan uploaded
+                        updatePointsList();
+                        submitPointsButton.disabled = true;
+                        document.getElementById('navGenerateHeatmap').disabled = true;
+
+                    };
+                    selectedFloorplanImage.onerror = () => {
+                        alert("Error loading floorplan image. Please try a different file.");
+                        selectedFloorplanImage = null;
+                        floorplanPreviewContainer.style.display = 'none';
+                        document.getElementById('navConfigurePoints').disabled = true;
+                    }
+                    selectedFloorplanImage.src = e.target.result;
+                }
+                reader.readAsDataURL(file);
+            } else {
+                 selectedFloorplanImage = null;
+                 floorplanPreviewContainer.style.display = 'none';
+                 document.getElementById('navConfigurePoints').disabled = true;
+                 document.getElementById('navGenerateHeatmap').disabled = true;
+            }
+        });
+
+        submitFloorplanButton.addEventListener('click', () => {
+            if (!selectedFloorplanImage || !selectedFloorplanImage.complete || selectedFloorplanImage.naturalWidth === 0) {
+                alert("Please upload and wait for the floorplan image to load first.");
+                return;
+            }
+            showSection('sectionConfigurePoints');
+            initializePointMaker();
+        });
+
+
+        // --- Step 2: Configure Points (PointMaker) Logic ---
+        function initializePointMaker() {
+            if (!selectedFloorplanImage || !selectedFloorplanImage.complete || selectedFloorplanImage.naturalWidth === 0) {
+                console.error("Floorplan image not ready for PointMaker.");
+                alert("Error: Floorplan image not loaded. Please re-upload in Step 1.");
+                showSection('sectionUploadFloorplan');
+                return;
+            }
+            
+            const containerWidth = pointMakerCanvas.parentElement.clientWidth * 0.95; // Use 95% of parent width
+            const aspectRatio = originalFloorplanWidth / originalFloorplanHeight;
+            
+            let canvasWidth = originalFloorplanWidth;
+            let canvasHeight = originalFloorplanHeight;
+
+            if (canvasWidth > containerWidth) {
+                canvasWidth = containerWidth;
+                canvasHeight = canvasWidth / aspectRatio;
+            }
+            
+            pointMakerCanvas.width = canvasWidth;
+            pointMakerCanvas.height = canvasHeight;
+            
+            ctx.clearRect(0, 0, pointMakerCanvas.width, pointMakerCanvas.height); // Clear canvas
+            ctx.drawImage(selectedFloorplanImage, 0, 0, pointMakerCanvas.width, pointMakerCanvas.height);
+            
+            // Redraw existing points if any
+            floorplanPoints.forEach(p => {
+                // Scale points from original image coords to current canvas display coords
+                const displayX = (p.originalX / originalFloorplanWidth) * pointMakerCanvas.width;
+                const displayY = (p.originalY / originalFloorplanHeight) * pointMakerCanvas.height;
+                drawPointOnCanvas(displayX, displayY);
+            });
+            updatePointsList(); // Update the text list
+            submitPointsButton.disabled = floorplanPoints.length !== 4;
+        }
+
+        pointMakerCanvas.addEventListener('click', (event) => {
+            if (!selectedFloorplanImage) return;
+            if (floorplanPoints.length >= 4) {
+                alert("You have already selected 4 points. Reset if you want to change them.");
+                return;
+            }
+            const rect = pointMakerCanvas.getBoundingClientRect();
+            const canvasX = event.clientX - rect.left;
+            const canvasY = event.clientY - rect.top;
+
+            // Store points relative to original image dimensions
+            const originalX = (canvasX / pointMakerCanvas.width) * originalFloorplanWidth;
+            const originalY = (canvasY / pointMakerCanvas.height) * originalFloorplanHeight;
+
+            floorplanPoints.push({ x: canvasX, y: canvasY, originalX: originalX, originalY: originalY });
+            drawPointOnCanvas(canvasX, canvasY);
+            updatePointsList();
+
+            if (floorplanPoints.length === 4) {
+                submitPointsButton.disabled = false;
+                document.getElementById('navGenerateHeatmap').disabled = false;
+            }
+        });
+
+        function drawPointOnCanvas(x, y) {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function updatePointsList() {
+            pointsList.innerHTML = '';
+            floorplanPoints.forEach((point, index) => {
+                const li = document.createElement('li');
+                // Displaying original coordinates for clarity, though canvasX/Y are used for drawing
+                li.textContent = `Point ${index + 1}: (Original: ${point.originalX.toFixed(0)}, ${point.originalY.toFixed(0)})`;
+                pointsList.appendChild(li);
+            });
+        }
+
+        resetPointsButton.addEventListener('click', () => {
+            floorplanPoints = []; // Clear stored points
+            initializePointMaker(); // Redraws image and clears points on canvas
+            document.getElementById('navGenerateHeatmap').disabled = true;
+        });
+
+        submitPointsButton.addEventListener('click', () => {
+            if (floorplanPoints.length !== 4) {
+                alert("Please select exactly 4 points.");
+                return;
+            }
+            console.log("Selected points (original coordinates):", floorplanPoints.map(p => ({x: p.originalX, y: p.originalY })));
+            showSection('sectionGenerateHeatmap');
+        });
+
+        // Adjust canvas on window resize
+        window.addEventListener('resize', () => {
+            if (document.getElementById('sectionConfigurePoints').classList.contains('active') && selectedFloorplanImage) {
+                initializePointMaker();
+            }
+        });
+
+
+        // --- Step 3: Generate Heatmap Logic ---
+        heatmapForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            statusDiv.innerHTML = '<p>Status: Uploading files...</p>';
+            resultsDiv.style.display = 'none';
+            heatmapImageElem.src = '';
+            videoLinkElem.href = '#';
+
+            if (!selectedFloorplanImage || floorplanPoints.length !== 4) {
+                alert("Please complete floorplan upload and point configuration steps first.");
+                showSection('sectionUploadFloorplan');
+                return;
+            }
+            if (videoFile.files.length === 0) {
+                alert("Please select a video file.");
+                return;
+            }
+            if (floorplanUploadFile.files.length === 0) {
+                alert("Floorplan file seems to be missing. Please re-upload in Step 1.");
+                showSection('sectionUploadFloorplan');
+                return;
+            }
+
+
+            const formData = new FormData();
+            formData.append('videoFile', videoFile.files[0]);
+            formData.append('floorplanFile', floorplanUploadFile.files[0]); // Send the actual floorplan file
+
+            // Send points relative to the original floorplan image dimensions
+            const pointsDataForBackend = floorplanPoints.map(p => `${p.originalX.toFixed(0)},${p.originalY.toFixed(0)}`).join('\n');
+            formData.append('pointsData', pointsDataForBackend);
+
+            try {
+                const response = await fetch(`${backendUrl}/api/heatmap_jobs`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (response.status === 401) {
+                    alert("Session expired or not logged in. Redirecting to login.");
+                    window.location.href = '/login';
+                    return;
+                }
+                const data = await response.json();
+                if (response.ok && data.job_id) {
+                    currentJobId = data.job_id;
+                    statusDiv.innerHTML = `<p>Status: Processing... (Job ID: ${currentJobId})</p>`;
+                    pollJobStatus(currentJobId);
+                } else {
+                    statusDiv.innerHTML = `<p>Status: Error - ${data.error || 'Submission failed'}</p>`;
+                }
+            } catch (error) {
+                console.error('Error submitting job:', error);
+                statusDiv.innerHTML = `<p>Status: Error - Could not connect to server.</p>`;
+            }
+        });
+
+        async function pollJobStatus(jobId) {
+            try {
+                const response = await fetch(`${backendUrl}/api/heatmap_jobs/${jobId}/status`);
+                const data = await response.json();
+
+                if (response.status === 401) {
+                    alert("Session expired or not logged in. Redirecting to login.");
+                    window.location.href = '/login';
+                    return;
+                }
+                if (!response.ok) {
+                    statusDiv.innerHTML = `<p>Status: Error checking status - ${data.error || 'Unknown error'}</p>`;
+                    return;
+                }
+
+                statusDiv.innerHTML = `<p>Status: ${data.status} (Job ID: ${jobId})</p><p>${data.message || ''}</p>`;
+
+                if (data.status === 'completed') {
+                    resultsDiv.style.display = 'block';
+                    heatmapImageElem.src = `${backendUrl}/api/heatmap_jobs/${jobId}/result/image?t=${new Date().getTime()}`;
+                    videoLinkElem.href = `${backendUrl}/api/heatmap_jobs/${jobId}/result/video`;
+                    videoLinkElem.download = `processed_video_${jobId}.mp4`;
+                } else if (data.status === 'processing' || data.status === 'pending') {
+                    setTimeout(() => pollJobStatus(jobId), 5000);
+                } else if (data.status === 'error') {
+                    // Error message is already displayed
+                }
+            } catch (error) {
+                console.error('Error polling status:', error);
+                statusDiv.innerHTML = `<p>Status: Error - Could not get job status.</p>`;
+            }
+        }
+
+        // --- Initial Setup ---
+        showSection('sectionUploadFloorplan');
+        document.getElementById('navConfigurePoints').disabled = true;
+        document.getElementById('navGenerateHeatmap').disabled = true;
+    </script>
+</body>
+</html>
