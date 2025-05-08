@@ -5,49 +5,187 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Heatmap Generator</title>
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
-        header { background-color: #007bff; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        /* Basic Reset & Font */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            min-height: 100vh; 
+            background-color: #f4f7f9; /* Lighter background */
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header { 
+            background-color: #2c3e50; /* Darker, more professional header */
+            color: white; 
+            padding: 15px 30px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         header h1 { margin: 0; font-size: 1.5em; cursor: pointer; }
-        header button { background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
-        header button:hover { background-color: #c82333; }
-        nav { background-color: #f8f9fa; padding: 10px 20px; border-bottom: 1px solid #dee2e6; }
-        nav button.main-nav-button { background-color: transparent; border: none; padding: 10px 15px; cursor: pointer; font-size: 1.1em; margin-right: 10px;}
+        header button#logoutButton { 
+            background-color: #e74c3c; /* Softer red */
+            color: white; 
+            border: none; 
+            padding: 8px 15px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            transition: background-color 0.3s ease;
+        }
+        header button#logoutButton:hover { background-color: #c0392b; }
+
+        /* Navigation */
+        nav { 
+            background-color: #ffffff; 
+            padding: 0 20px; 
+            border-bottom: 1px solid #e0e0e0; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        nav button.main-nav-button { 
+            background-color: transparent; 
+            border: none; 
+            padding: 15px 20px; 
+            cursor: pointer; 
+            font-size: 1em; 
+            margin-right: 5px;
+            color: #555;
+            transition: color 0.3s ease, border-bottom-color 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+        nav button.main-nav-button:hover { color: #007bff; }
         nav button:disabled { color: #ccc; cursor: not-allowed; }
-        nav button.active { font-weight: bold; border-bottom: 2px solid #007bff; }
-        .page-section { display: none; /* Main page sections, hidden by default */ }
-        .page-section.active { display: block; /* Show active page section */ }
-        .content-section { display: none; /* Sub-sections within a page, hidden by default */ }
-        .content-section.active { display: block; /* Show active sub-section */ }
-        .container { flex-grow: 1; max-width: 800px; margin: 20px auto; padding: 20px; border-radius: 8px; }
-        label { display: block; margin-top: 10px; }
-        input[type="file"], button[type="submit"], .action-button { margin-top: 5px; padding: 8px 15px; border-radius: 4px; border: 1px solid #007bff; background-color: #007bff; color:white; cursor:pointer;}
-        input[type="file"] { border: 1px solid #ccc; background-color: white; color: black; }
-        button:disabled { background-color: #ccc; border-color: #ccc; cursor: not-allowed;}
-        #status, #results { margin-top: 20px; padding: 10px; border: 1px solid #eee; }
+        nav button.active { font-weight: 600; color: #007bff; border-bottom: 3px solid #007bff; }
+        
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+
+        /* Main Container */
+        .container { flex-grow: 1; max-width: 960px; margin: 30px auto; padding: 20px; }
+
+        h2 { font-size: 1.8em; color: #2c3e50; margin-bottom: 20px; }
+        h3 { font-size: 1.4em; color: #34495e; margin-bottom: 15px; }
+        p { margin-bottom: 10px; color: #555; }
+
+        #status, #results { margin-top: 20px; padding: 15px; border: 1px solid #e0e0e0; background-color: #fff; border-radius: 5px; }
         #heatmapImage { max-width: 100%; height: auto; margin-top: 10px; }
-        #pointMakerCanvas { border:1px solid #000; cursor:crosshair; max-width: 100%; height: auto; }
-        /* Progress Bar Styles */
+        #pointMakerCanvas { border:1px solid #ccc; cursor:crosshair; max-width: 100%; height: auto; border-radius: 5px; }
+        
+        /* Progress Bar */
         .progress-bar-container {
             width: 100%;
             background-color: #e0e0e0;
             border-radius: 4px;
             margin-top: 8px;
             height: 22px;
-            overflow: hidden; /* Ensures inner bar corners are also rounded */
+            overflow: hidden; 
         }
         .progress-bar-fill {
             height: 100%;
-            width: 0%; /* Initial width */
+            width: 0%; 
             background-color: #007bff;
-            border-radius: 4px; /* Match container for smooth look */
+            border-radius: 4px; 
             text-align: center;
-            line-height: 22px; /* Vertically center text */
+            line-height: 22px; 
             color: white;
             font-size: 0.9em;
-            transition: width 0.4s ease; /* Smooth transition for width changes */
-            white-space: nowrap; /* Prevent text wrapping */
+            transition: width 0.4s ease; 
+            white-space: nowrap; 
         }
+
+        /* Analytics Card */
+        .analytics-card {
+            background-color: #ffffff;
+            border: 1px solid #d1d8dd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .analytics-card h3 {
+            margin-top: 0;
+            color: #0056b3; 
+        }
+        .analytics-card .metric {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #007bff; 
+            margin: 10px 0; 
+        }
+        .quick-actions button { margin-right: 10px; margin-bottom: 10px; }
+        .zone-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .zone-item:last-child {
+            border-bottom: none;
+        }
+        .zone-item button {
+            padding: 3px 8px;
+            font-size: 0.9em;
+            background-color: #dc3545; 
+            border-color: #dc3545;
+        }
+        .zone-item button:hover {
+            background-color: #c82333;
+        }
+
+        /* Forms */
+        label { display: block; margin-top: 15px; margin-bottom: 5px; font-weight: 600; color: #444; }
+        input[type="file"], 
+        input[type="text"],
+        input[type="datetime-local"] { 
+            margin-top: 5px; 
+            padding: 10px 15px; 
+            border-radius: 5px; 
+            border: 1px solid #ccc; 
+            background-color: white; 
+            color: #333;
+            width: 100%; /* Make inputs take full width of their container */
+            font-size: 1em;
+        }
+        input[type="file"] { padding: 8px; } /* Slightly less padding for file input */
+
+        /* Buttons */
+        button, .action-button, button[type="submit"] { 
+            margin-top: 10px; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            border: none; 
+            background-color: #007bff; 
+            color:white; 
+            cursor:pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        button:hover, .action-button:hover, button[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        button:active, .action-button:active, button[type="submit"]:active {
+            transform: translateY(1px);
+        }
+        button:disabled { background-color: #ccc; border-color: #ccc; cursor: not-allowed; transform: none;}
+        .chart-filter-options { margin-bottom: 15px; }
+        .chart-filter-options label { margin-right: 10px; display: inline-block;}
+        .chart-filter-options input[type="radio"] { margin-right: 5px;}
+
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
@@ -56,21 +194,61 @@
     </header>
 
     <nav>
+        <button id="navDashboardOverview" class="main-nav-button">Dashboard Overview</button>
         <button id="navProcessVideo" class="main-nav-button">Process Video</button>
         <button id="navConfigureFloorplan" class="main-nav-button">Configure Floorplan</button>
+        <button id="navZoneMapView" class="main-nav-button">Zone Map View</button>
         <button id="navHistory" class="main-nav-button">History</button>
     </nav>
 
     <div class="container">
+        <!-- Page for Dashboard Overview -->
+        <section id="pageDashboardOverview" class="page-section">
+            <h2>Store Analytics Overview</h2>
+            
+            <div class="analytics-card">
+                <h3>Total Visitors Today</h3>
+                <p id="totalVisitorsCount" class="metric">--</p>
+                <small>Based on processed video data for the current day.</small>
+            </div>
+
+            <div class="analytics-card">
+                <h3 id="mainChartTitle">Visitor Trends</h3>
+                <div class="chart-filter-options">
+                    <label><input type="radio" name="chartPeriod" value="daily_hourly" checked> Today's Hourly Traffic</label>
+                    <label><input type="radio" name="chartPeriod" value="yearly_monthly"> Monthly Trends (Current Year)</label>
+                </div>
+                <p id="peakHoursInfo" style="font-size: 1.1em;">Data not yet available. Process videos to see peak times.</p>
+                <div id="peakHoursChartContainer" style="margin-top:15px; min-height: 250px; position: relative;">
+                    <canvas id="peakHoursChart"></canvas>
+                </div>
+            </div>
+
+            <div id="zoneAnalyticsContainer" class="analytics-card" style="display:none;">
+                <h3>Zone Traffic Analysis (Today)</h3>
+                <div id="zoneTrafficList">
+                    <p>Process videos with defined zones to see analysis here.</p>
+                </div>
+            </div>
+
+
+            <div class="quick-actions" style="margin-top: 30px;">
+                <h3>Quick Actions</h3>
+                <button id="quickActionProcessVideo" class="action-button">Process New Video</button>
+                <button id="quickActionCheckHistory" class="action-button">View Processing History</button>
+            </div>
+        </section>
+
         <!-- Page for Processing Video -->
         <section id="pageProcessVideo" class="page-section">
             <h2>Process Video for Heatmap</h2>
             <div id="loadedConfigInfo" style="padding: 10px; background-color: #e9ecef; border-radius: 4px; margin-bottom:15px;">
                 <p><strong>Loaded Point Configuration:</strong> <span id="loadedFloorplanName">None</span></p>
                 <p>Points Status: <span id="loadedPointsStatus">Not Set</span></p>
-                <small>If a point configuration is loaded from "Configure Floorplan", those points will be used with the floorplan you select below. Otherwise, you must set points in "Configure Floorplan" first.</small>
+                <p>Zones Status: <span id="loadedZonesStatus">Not Set</span></p>
+                <small>If a point configuration and zones are loaded from "Configure Floorplan", those will be used with the floorplan you select below. Otherwise, you must set them up in "Configure Floorplan" first.</small>
             </div>
-            <p>Upload your video file. The floorplan and points you configured will be used.</p>
+            <p>Upload your video file. The floorplan, points, and zones you configured will be used.</p>
             <form id="heatmapForm">
                 <div>
                     <label for="processVideo_floorplanFile">Floorplan Image File (PNG, JPG):</label>
@@ -80,10 +258,14 @@
                     <label for="processVideo_videoFile">Video File (MP4, AVI):</label>
                     <input type="file" id="processVideo_videoFile" name="videoFile" accept=".mp4,.avi,.mov" required>
                 </div>
+                <div>
+                    <label for="processVideo_eventTime">Date and Time of Video Recording:</label>
+                    <input type="datetime-local" id="processVideo_eventTime" name="videoEventTime" required style="padding: 10px 15px;">
+                </div>
                 <button type="submit" style="margin-top:10px;" id="generateHeatmapButton">Generate Heatmap</button>
             </form>
             <div id="status">
-                <p><span id="statusText">Status: Idle</span></p> <!-- Loader will be appended here by JS -->
+                <p><span id="statusText">Status: Idle</span></p>
             </div>
             <div id="results" style="display:none;">
                 <h2>Results</h2>
@@ -96,8 +278,8 @@
 
         <!-- Page for Configuring Floorplan -->
         <section id="pageConfigureFloorplan" class="page-section">
-            <h2>Configure Floorplan and Points</h2>
-            <div class="content-section active" id="configStep1Upload"> <!-- Initially show upload -->
+            <h2>Configure Floorplan, Points, and Zones</h2>
+            <div class="content-section active" id="configStep1Upload">
                 <h3>Step 1: Upload Floorplan Image</h3>
                 <p>Upload the floorplan image you want to use for the heatmap.</p>
                 <div>
@@ -111,25 +293,60 @@
                 <button id="goToPointConfigButton" class="action-button" style="margin-top:10px;" disabled>Next: Configure Points</button>
             </div>
 
-            <div class="content-section" id="configStep2Points"> <!-- Hidden initially -->
-                <h3>Step 2: Configure Points</h3>
+            <div class="content-section" id="configStep2Points"> 
+                <h3>Step 2: Configure Perspective Points</h3>
                 <p>Click on the floorplan to select 4 points: Top-Left, Top-Right, Bottom-Right, Bottom-Left of the camera's view on the floorplan.</p>
                 <canvas id="pointMakerCanvas"></canvas>
                 <div id="pointsCoordinates" style="margin-top:10px;">
-                    <p>Selected Points (up to 4):</p>
-                    <ul id="pointsList"></ul>
+                    <p>Selected Perspective Points (up to 4):</p>
+                    <ul id="pointsList" style="list-style-type: none; padding-left: 0;"></ul>
                 </div>
-                <button id="resetPointsButton" class="action-button">Reset Points</button>
-                <button id="saveConfigurationButton" class="action-button" style="margin-top:10px;" disabled>Save This Point Configuration</button>
+                <button id="resetPointsButton" class="action-button">Reset Perspective Points</button>
+                <button id="goToZoneConfigButton" class="action-button" style="margin-top:10px;" disabled>Next: Define Zones</button>
+            </div>
+
+            <div class="content-section" id="configStep3Zones"> 
+                <h3>Step 3: Define Zones (Optional)</h3>
+                <p>Click on the floorplan canvas (shown in Step 2 area) to define polygon points for a zone. Give it a name and save. Zones are drawn in blue.</p>
+                <div>
+                    <label for="zoneNameInput">Zone Name:</label>
+                    <input type="text" id="zoneNameInput" placeholder="e.g., Aisle 1, Cold Section">
+                    <button type="button" id="startDrawingZoneButton" class="action-button" style="margin-left: 10px;">Start/Add Point to Zone</button>
+                    <button type="button" id="finishCurrentZoneButton" class="action-button">Finish & Save Current Zone</button>
+                    <button type="button" id="clearCurrentZonePointsButton" class="action-button">Clear Current Zone Points</button>
+                </div>
+                <div id="definedZonesList" style="margin-top: 15px; background-color: #f9f9f9; padding:10px; border-radius:4px;">
+                    <strong>Defined Zones:</strong> (None)
+                </div>
+                <button id="saveFullConfigurationButton" class="action-button" style="margin-top:20px;">Save Full Configuration (Points & Zones)</button>
             </div>
         </section>
 
-        <!-- Page for History (Placeholder) -->
+        <!-- Page for Zone Map View -->
+        <section id="pageZoneMapView" class="page-section">
+            <h2>Latest Zone Map View</h2>
+            <p>Visual representation of zones and traffic from the most recent processed video with zone data.</p>
+            <div id="zoneMapContainer" style="position: relative; margin-top: 20px; border: 1px solid #ccc; max-width: 100%;">
+                <img id="zoneMapFloorplanImage" src="" alt="Floorplan with Zones" style="display: block; max-width: 100%; height: auto;">
+                <canvas id="zoneMapOverlayCanvas" style="position: absolute; top: 0; left: 0; pointer-events: auto;"></canvas> 
+                <div id="zoneHoverInfo" style="position: absolute; background-color: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 4px; display: none; pointer-events: none;"></div>
+            </div>
+            <p id="zoneMapMessage" style="text-align: center; margin-top: 10px;"></p>
+        </section>
+
+        <!-- Page for History -->
         <section id="pageHistory" class="page-section">
             <h2>Processing History</h2>
             <table id="historyTable" style="width:100%; border-collapse: collapse; margin-top:15px;">
                 <thead>
-                    <tr style="background-color:#f2f2f2; text-align:left;"><th style="padding:8px;">Job ID</th><th style="padding:8px;">Video</th><th style="padding:8px;">Floorplan</th><th style="padding:8px;">People</th><th style="padding:8px;">Status</th><th style="padding:8px;">Message</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th></tr>
+                    <tr style="background-color:#e9ecef; text-align:left; border-bottom: 2px solid #cdd5db;">
+                        <th style="padding:12px 8px;">Job ID</th>
+                        <th style="padding:12px 8px;">Video</th>
+                        <th style="padding:12px 8px;">Floorplan</th>
+                        <th style="padding:12px 8px;">People</th>
+                        <th style="padding:12px 8px;">Status</th>
+                        <th style="padding:12px 8px;">Message</th>
+                        <th style="padding:12px 8px;">Event Time</th><th style="padding:12px 8px;">Actions</th></tr>
                 </thead>
                 <tbody id="historyTableBody"></tbody>
             </table>
@@ -138,7 +355,27 @@
     </div>
 
     <script>
+        // Minor style adjustment for table rows in history
+        function styleHistoryTableRows() {
+            const rows = document.querySelectorAll('#historyTableBody tr');
+            rows.forEach((row, index) => {
+                row.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f9f9f9'; // Alternating white and light gray
+                row.querySelectorAll('td').forEach(td => td.style.padding = '10px 8px'); // Consistent padding
+            });
+        }
+    </script>
+    <script>
         const backendUrl = 'http://127.0.0.1:5000';
+
+        // Constants
+        const LOCAL_STORAGE_CONFIG_NAME = 'savedConfigName';
+        const LOCAL_STORAGE_CONFIG_DATA_URL = 'savedConfigDataURL';
+        const LOCAL_STORAGE_CONFIG_POINTS = 'savedConfigPoints';
+        const LOCAL_STORAGE_ZONES = 'savedFloorplanZones'; 
+        const POLL_INTERVAL_MS = 2000;
+        const POINT_MARKER_RADIUS = 5;
+        const CANVAS_CONTAINER_SCALE_FACTOR = 0.95;
+
 
         // DOM Elements
         const dashboardTitle = document.getElementById('dashboardTitle');
@@ -146,7 +383,25 @@
         const mainNavButtons = document.querySelectorAll('.main-nav-button');
         const pageSections = document.querySelectorAll('.page-section');
 
-        // Elements for Configure Floorplan Page
+        // Dashboard Overview Page
+        const totalVisitorsCountElem = document.getElementById('totalVisitorsCount');
+        const peakHoursInfoElem = document.getElementById('peakHoursInfo');
+        const mainChartTitleElem = document.getElementById('mainChartTitle');
+        const chartPeriodRadios = document.querySelectorAll('input[name="chartPeriod"]');
+        const quickActionProcessVideoBtn = document.getElementById('quickActionProcessVideo');
+        const quickActionCheckHistoryBtn = document.getElementById('quickActionCheckHistory');
+        const zoneAnalyticsContainer = document.getElementById('zoneAnalyticsContainer');
+        const zoneTrafficList = document.getElementById('zoneTrafficList');
+
+        // Zone Map View Page
+        const zoneMapContainer = document.getElementById('zoneMapContainer');
+        const zoneMapFloorplanImage = document.getElementById('zoneMapFloorplanImage');
+        const zoneMapOverlayCanvas = document.getElementById('zoneMapOverlayCanvas');
+        const zoneHoverInfo = document.getElementById('zoneHoverInfo');
+        const zoneMapMessage = document.getElementById('zoneMapMessage');
+
+
+        // Configure Floorplan Page
         const configPage_floorplanUploadFile = document.getElementById('configPage_floorplanUploadFile');
         const floorplanPreviewContainer = document.getElementById('floorplanPreviewContainer');
         const floorplanPreviewImage = document.getElementById('floorplanPreviewImage');
@@ -154,16 +409,26 @@
         const pointMakerCanvas = document.getElementById('pointMakerCanvas');
         const pointsList = document.getElementById('pointsList');
         const resetPointsButton = document.getElementById('resetPointsButton');
-        const saveConfigurationButton = document.getElementById('saveConfigurationButton');
-        const ctx = pointMakerCanvas.getContext('2d');
+        const goToZoneConfigButton = document.getElementById('goToZoneConfigButton');
+        let ctx = null; 
+        // Zone definition elements
+        const zoneNameInput = document.getElementById('zoneNameInput');
+        const startDrawingZoneButton = document.getElementById('startDrawingZoneButton');
+        const finishCurrentZoneButton = document.getElementById('finishCurrentZoneButton');
+        const clearCurrentZonePointsButton = document.getElementById('clearCurrentZonePointsButton');
+        const definedZonesListDiv = document.getElementById('definedZonesList');
+        const saveFullConfigurationButton = document.getElementById('saveFullConfigurationButton');
 
-        // Elements for Process Video Page
+
+        // Process Video Page
         const loadedConfigInfo = document.getElementById('loadedConfigInfo');
         const loadedFloorplanNameSpan = document.getElementById('loadedFloorplanName');
         const loadedPointsStatusSpan = document.getElementById('loadedPointsStatus');
+        const loadedZonesStatusSpan = document.getElementById('loadedZonesStatus'); 
         const heatmapForm = document.getElementById('heatmapForm');
         const processVideo_floorplanFile = document.getElementById('processVideo_floorplanFile');
         const processVideo_videoFile = document.getElementById('processVideo_videoFile');
+        const processVideo_eventTimeInput = document.getElementById('processVideo_eventTime');
         const generateHeatmapButton = document.getElementById('generateHeatmapButton');
         const statusTextSpan = document.getElementById('statusText');
         const statusDiv = document.getElementById('status');
@@ -171,77 +436,109 @@
         const heatmapImageElem = document.getElementById('heatmapImage');
         const videoLinkElem = document.getElementById('videoLink');
 
-        // Client-side state for active configuration
-        let selectedFloorplanImage = null; // This will be an Image object for canvas in Configure page
-        let currentConfigPoints = []; // Points being configured on the Configure page {originalX, originalY}
+        // Client-side state
+        let selectedFloorplanImage = null;
+        let currentConfigPoints = []; 
+        let currentDrawingZonePoints = []; 
+        let floorplanZones = []; 
         let originalFloorplanWidth = 0;
         let originalFloorplanHeight = 0;
         let currentJobId = null;
+        let peakHoursChartInstance = null;
+        let isDrawingZoneMode = false;
+
 
         // --- Navigation Logic ---
         function showPage(pageId) {
-            pageSections.forEach(section => {
-                section.classList.remove('active');
-                if (section.id === pageId) {
-                    section.classList.add('active');
-                }
-            });
+            pageSections.forEach(section => section.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
             mainNavButtons.forEach(button => {
                 button.classList.remove('active');
-                if (button.id === `nav${pageId.replace('page', '')}`) {
-                    button.classList.add('active');
-                }
+                if (button.id === `nav${pageId.replace('page', '')}`) button.classList.add('active');
             });
-            loadAndDisplaySavedConfigInfo(); // Update display when navigating
+
+            if (pageId === 'pageDashboardOverview') updateDashboardOverview();
+            else if (pageId === 'pageConfigureFloorplan') {
+                 loadConfigIntoPointMaker(); 
+                 showConfigStep('configStep1Upload'); 
+            }
+            else if (pageId === 'pageHistory') fetchJobHistory();
+            else if (pageId === 'pageZoneMapView') loadZoneMapView();
+            
+            updateLoadedConfigDisplay(); 
         }
 
         function showConfigStep(stepId) {
             document.querySelectorAll('#pageConfigureFloorplan .content-section').forEach(s => s.classList.remove('active'));
-            document.getElementById(stepId).classList.add('active');
+
+            const step1UploadDiv = document.getElementById('configStep1Upload');
+            const step2CanvasDiv = document.getElementById('configStep2Points'); 
+            const step3ZoneControlsDiv = document.getElementById('configStep3Zones');
+
+            if (stepId === 'configStep1Upload') {
+                step1UploadDiv.classList.add('active');
+            } else if (stepId === 'configStep2Points') {
+                step2CanvasDiv.classList.add('active');
+            } else if (stepId === 'configStep3Zones') {
+                step2CanvasDiv.classList.add('active'); 
+                step3ZoneControlsDiv.classList.add('active');
+            }
+
+            isDrawingZoneMode = (stepId === 'configStep3Zones');
+
+            if (isDrawingZoneMode) {
+                pointMakerCanvas.style.borderColor = 'blue'; 
+            } else {
+                pointMakerCanvas.style.borderColor = 'black';
+            }
+            
+            if ((stepId === 'configStep2Points' || stepId === 'configStep3Zones') && selectedFloorplanImage) {
+                initializePointMaker();
+            }
         }
 
-        dashboardTitle.addEventListener('click', () => showPage('pageProcessVideo'));
 
-        mainNavButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                if (button.disabled) return;
-                const targetPageId = `page${button.id.replace('nav', '')}`;
-                showPage(targetPageId);
-                if (targetPageId === 'pageConfigureFloorplan') {
-                    showConfigStep('configStep1Upload');
-                    loadConfigIntoPointMaker(); // Attempt to load saved config into canvas
-                } else if (targetPageId === 'pageHistory') {
-                    fetchJobHistory();
-                }
-            });
-        });
+        dashboardTitle.addEventListener('click', () => showPage('pageDashboardOverview'));
+        mainNavButtons.forEach(button => button.addEventListener('click', () => {
+            if (button.disabled) return;
+            showPage(`page${button.id.replace('nav', '')}`);
+        }));
+        quickActionProcessVideoBtn.addEventListener('click', () => showPage('pageProcessVideo'));
+        quickActionCheckHistoryBtn.addEventListener('click', () => showPage('pageHistory'));
 
         logoutButton.addEventListener('click', async () => {
             try {
                 await fetch(`${backendUrl}/api/logout`, { method: 'POST' });
                 window.location.href = '/login';
-            } catch (error) {
-                console.error('Logout error:', error);
-                alert('Logout failed. Please try again.');
-            }
+            } catch (error) { console.error('Logout error:', error); alert('Logout failed.'); }
         });
 
-        function loadAndDisplaySavedConfigInfo() {
-            const savedName = localStorage.getItem('savedConfigName');
-            const savedPointsStr = localStorage.getItem('savedConfigPoints');
+        function updateLoadedConfigDisplay() {
+            const savedName = localStorage.getItem(LOCAL_STORAGE_CONFIG_NAME);
+            const savedPointsStr = localStorage.getItem(LOCAL_STORAGE_CONFIG_POINTS);
+            const savedZonesStr = localStorage.getItem(LOCAL_STORAGE_ZONES);
+
             if (savedName) {
                 loadedFloorplanNameSpan.textContent = savedName;
                 if (savedPointsStr) {
                     const points = JSON.parse(savedPointsStr);
-                    loadedPointsStatusSpan.textContent = points.length === 4 ? `${points.length} points set.` : "Points not fully set.";
+                    loadedPointsStatusSpan.textContent = points.length === 4 ? `${points.length} points set.` : "Perspective points not fully set.";
                 } else {
-                    loadedPointsStatusSpan.textContent = "Points not set.";
+                    loadedPointsStatusSpan.textContent = "Perspective points not set.";
+                }
+                if (savedZonesStr) {
+                    const zones = JSON.parse(savedZonesStr);
+                    loadedZonesStatusSpan.textContent = zones.length > 0 ? `${zones.length} zone(s) defined.` : "No zones defined.";
+                } else {
+                    loadedZonesStatusSpan.textContent = "No zones defined.";
                 }
             } else {
                 loadedFloorplanNameSpan.textContent = 'None';
                 loadedPointsStatusSpan.textContent = "Not Set.";
+                loadedZonesStatusSpan.textContent = "Not Set.";
             }
         }
+
 
         // --- Configure Floorplan Page Logic ---
         configPage_floorplanUploadFile.addEventListener('change', (event) => {
@@ -251,111 +548,171 @@
                 reader.onload = (e) => {
                     floorplanPreviewImage.src = e.target.result;
                     floorplanPreviewContainer.style.display = 'block';
-                    
                     selectedFloorplanImage = new Image();
                     selectedFloorplanImage.onload = () => {
                         originalFloorplanWidth = selectedFloorplanImage.naturalWidth;
                         originalFloorplanHeight = selectedFloorplanImage.naturalHeight;
-                        console.log("Floorplan image loaded for config. Original dims:", originalFloorplanWidth, "x", originalFloorplanHeight);
+                        console.log("New image uploaded and loaded. Original dimensions:", originalFloorplanWidth, "x", originalFloorplanHeight); 
                         goToPointConfigButton.disabled = false;
-                        currentConfigPoints = []; 
-                        updatePointsListDisplay();
-                        saveConfigurationButton.disabled = true;
+                        currentConfigPoints = []; floorplanZones = []; currentDrawingZonePoints = []; 
+                        updatePointsListDisplay(); updateDefinedZonesDisplay();
+                        goToZoneConfigButton.disabled = true;
                     };
-                    selectedFloorplanImage.onerror = () => {
-                        alert("Error loading floorplan image for preview. Please try a different file.");
-                        selectedFloorplanImage = null;
-                        floorplanPreviewContainer.style.display = 'none';
-                        goToPointConfigButton.disabled = true;
-                    };
+                    selectedFloorplanImage.onerror = () => { alert("Error loading image."); goToPointConfigButton.disabled = true; };
                     selectedFloorplanImage.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             } else {
-                 selectedFloorplanImage = null;
-                 floorplanPreviewContainer.style.display = 'none';
-                 goToPointConfigButton.disabled = true;
+                 selectedFloorplanImage = null; floorplanPreviewContainer.style.display = 'none'; goToPointConfigButton.disabled = true;
             }
         });
 
         goToPointConfigButton.addEventListener('click', () => {
-            if (!selectedFloorplanImage || !selectedFloorplanImage.complete || selectedFloorplanImage.naturalWidth === 0) {
-                alert("Please upload and wait for the floorplan image to load first.");
-                return;
-            }
+            if (!selectedFloorplanImage) { alert("Upload floorplan first."); return; }
             showConfigStep('configStep2Points');
-            initializePointMaker();
+        });
+        
+        goToZoneConfigButton.addEventListener('click', () => {
+            if (currentConfigPoints.length !== 4) { alert("Set 4 perspective points first."); return; }
+            showConfigStep('configStep3Zones');
         });
 
+
         function initializePointMaker() {
+            console.log("initializePointMaker called. selectedFloorplanImage exists:", !!selectedFloorplanImage); 
             if (!selectedFloorplanImage || !selectedFloorplanImage.complete || selectedFloorplanImage.naturalWidth === 0) {
-                console.error("Floorplan image not ready for PointMaker.");
+                console.error("initializePointMaker: Cannot proceed. selectedFloorplanImage is missing, incomplete, or has no dimensions.", 
+                              "Image complete:", selectedFloorplanImage ? selectedFloorplanImage.complete : 'N/A',
+                              "Natural width:", selectedFloorplanImage ? selectedFloorplanImage.naturalWidth : 'N/A',
+                              "Natural height:", selectedFloorplanImage ? selectedFloorplanImage.naturalHeight : 'N/A');
+                if (ctx && pointMakerCanvas.width > 0) ctx.clearRect(0, 0, pointMakerCanvas.width, pointMakerCanvas.height); 
                 return;
             }
             
-            const containerWidth = pointMakerCanvas.parentElement.clientWidth * 0.95; 
-            const aspectRatio = originalFloorplanWidth / originalFloorplanHeight;
-            
-            let canvasWidth = originalFloorplanWidth;
-            let canvasHeight = originalFloorplanHeight;
+            const currentImageOriginalWidth = selectedFloorplanImage.naturalWidth;
+            const currentImageOriginalHeight = selectedFloorplanImage.naturalHeight;
+            console.log("initializePointMaker: Using image natural dimensions:", currentImageOriginalWidth, "x", currentImageOriginalHeight);
+
+            const containerWidth = pointMakerCanvas.parentElement.clientWidth * CANVAS_CONTAINER_SCALE_FACTOR;
+            const aspectRatio = currentImageOriginalWidth / currentImageOriginalHeight;
+            let canvasWidth = currentImageOriginalWidth;
+            let canvasHeight = currentImageOriginalHeight;
 
             if (canvasWidth > containerWidth) {
                 canvasWidth = containerWidth;
                 canvasHeight = canvasWidth / aspectRatio;
             }
+            pointMakerCanvas.width = Math.max(1, canvasWidth); pointMakerCanvas.height = Math.max(1, canvasHeight); 
+            console.log("initializePointMaker: Canvas resized to", pointMakerCanvas.width, "x", pointMakerCanvas.height); 
             
-            pointMakerCanvas.width = canvasWidth;
-            pointMakerCanvas.height = canvasHeight;
-            
+            if (!ctx) ctx = pointMakerCanvas.getContext('2d'); 
             ctx.clearRect(0, 0, pointMakerCanvas.width, pointMakerCanvas.height); 
+            console.log("initializePointMaker: Canvas cleared."); 
             ctx.drawImage(selectedFloorplanImage, 0, 0, pointMakerCanvas.width, pointMakerCanvas.height);
+            console.log("initializePointMaker: ctx.drawImage called for floorplan."); 
             
+            const scaleX = pointMakerCanvas.width / currentImageOriginalWidth;
+            const scaleY = pointMakerCanvas.height / currentImageOriginalHeight;
+            console.log("initializePointMaker: Recalculating display points. ScaleX:", scaleX, "ScaleY:", scaleY); 
+
             currentConfigPoints.forEach(p => {
-                const displayX = (p.originalX / originalFloorplanWidth) * pointMakerCanvas.width;
-                const displayY = (p.originalY / originalFloorplanHeight) * pointMakerCanvas.height;
-                drawPointOnCanvas(displayX, displayY);
+                p.displayX = p.originalX * scaleX;
+                p.displayY = p.originalY * scaleY;
+                drawCanvasPoint(p.displayX, p.displayY, 'red');
             });
+            
+            floorplanZones.forEach(zone => {
+                zone.points.forEach(p => {
+                    p.displayX = p.originalX * scaleX;
+                    p.displayY = p.originalY * scaleY;
+                    drawCanvasPoint(p.displayX, p.displayY, 'rgba(0, 100, 200, 0.6)');
+                });
+                if (zone.points.length > 1) drawPolygon(zone.points, 'rgba(0, 100, 200, 0.2)');
+            });
+            
+            currentDrawingZonePoints.forEach(p => {
+                p.displayX = p.originalX * scaleX;
+                p.displayY = p.originalY * scaleY;
+                drawCanvasPoint(p.displayX, p.displayY, 'rgba(0, 150, 255, 0.7)');
+            });
+            if (currentDrawingZonePoints.length > 1) drawPolygon(currentDrawingZonePoints, 'rgba(0, 150, 255, 0.3)');
+
             updatePointsListDisplay(); 
-            saveConfigurationButton.disabled = currentConfigPoints.length !== 4;
+            goToZoneConfigButton.disabled = currentConfigPoints.length !== 4;
         }
 
         pointMakerCanvas.addEventListener('click', (event) => {
-            if (!selectedFloorplanImage) return;
-            if (currentConfigPoints.length >= 4) {
-                alert("You have already selected 4 points. Reset if you want to change them.");
+            console.log("Canvas clicked. isDrawingZoneMode:", isDrawingZoneMode, "selectedFloorplanImage exists:", !!selectedFloorplanImage);
+            
+            if (!selectedFloorplanImage || selectedFloorplanImage.naturalWidth === 0) { 
+                console.log("Canvas clicked, but no valid selectedFloorplanImage. Returning.");
+                alert("Please upload and select a floorplan image first in Step 1.");
                 return;
             }
             const rect = pointMakerCanvas.getBoundingClientRect();
-            const canvasX = event.clientX - rect.left;
-            const canvasY = event.clientY - rect.top;
+            const displayX = event.clientX - rect.left;
+            const displayY = event.clientY - rect.top;
+            
+            const currentImageNaturalWidth = selectedFloorplanImage.naturalWidth;
+            const currentImageNaturalHeight = selectedFloorplanImage.naturalHeight;
+            const originalX = (displayX / pointMakerCanvas.width) * currentImageNaturalWidth;
+            const originalY = (displayY / pointMakerCanvas.height) * currentImageNaturalHeight;
+            const pointData = { displayX, displayY, originalX, originalY };
 
-            const originalX = (canvasX / pointMakerCanvas.width) * originalFloorplanWidth;
-            const originalY = (canvasY / pointMakerCanvas.height) * originalFloorplanHeight;
-
-            currentConfigPoints.push({ x: canvasX, y: canvasY, originalX: originalX, originalY: originalY });
-            drawPointOnCanvas(canvasX, canvasY);
-            updatePointsListDisplay();
-
-            if (currentConfigPoints.length === 4) {
-                saveConfigurationButton.disabled = false;
+            if (isDrawingZoneMode) { 
+                console.log("Adding point to currentDrawingZonePoints.");
+                currentDrawingZonePoints.push(pointData);
+                drawCanvasPoint(displayX, displayY, 'rgba(0, 150, 255, 0.7)'); 
+                if (currentDrawingZonePoints.length > 1) drawPolygon(currentDrawingZonePoints, 'rgba(0, 150, 255, 0.3)');
+            } else { 
+                console.log("Not in zone drawing mode, attempting to add perspective point.");
+                if (currentConfigPoints.length < 4) {
+                    currentConfigPoints.push(pointData);
+                    drawCanvasPoint(displayX, displayY, 'red');
+                    updatePointsListDisplay();
+                    goToZoneConfigButton.disabled = currentConfigPoints.length !== 4;
+                } else {
+                    alert("4 perspective points already selected. Reset to change.");
+                }
             }
         });
 
-        function drawPointOnCanvas(x, y) {
-            ctx.fillStyle = 'red';
+
+        function drawCanvasPoint(x, y, color) {
+            if (!ctx) return; 
+            ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.arc(x, y, POINT_MARKER_RADIUS, 0, 2 * Math.PI);
             ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
+            if (color === 'red') { 
+                ctx.strokeStyle = 'white'; ctx.lineWidth = 1; ctx.stroke();
+            }
+        }
+        
+        function drawPolygon(points, fillColor) {
+            if (!ctx || points.length < 2) return; 
+            ctx.beginPath();
+            ctx.moveTo(points[0].displayX, points[0].displayY);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].displayX, points[i].displayY);
+            }
+            if (points.length > 2) { 
+            }
+            if (fillColor && points.length > 2) { 
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+            }
+            ctx.strokeStyle = fillColor.replace('0.3', '0.8').replace('0.2', '0.7'); 
+            ctx.lineWidth = 2;
             ctx.stroke();
         }
 
+
         function updatePointsListDisplay() {
             pointsList.innerHTML = '';
-            currentConfigPoints.forEach((point, index) => {
+            currentConfigPoints.forEach((p, i) => {
                 const li = document.createElement('li');
-                li.textContent = `Point ${index + 1}: (Original: ${point.originalX.toFixed(0)}, ${point.originalY.toFixed(0)})`;
+                li.textContent = `Perspective Point ${i + 1}: (Orig: ${p.originalX.toFixed(0)}, ${p.originalY.toFixed(0)})`;
                 pointsList.appendChild(li);
             });
         }
@@ -363,36 +720,81 @@
         resetPointsButton.addEventListener('click', () => {
             currentConfigPoints = []; 
             initializePointMaker(); 
-            saveConfigurationButton.disabled = true;
+            goToZoneConfigButton.disabled = true;
         });
 
-        saveConfigurationButton.addEventListener('click', () => {
-            if (currentConfigPoints.length !== 4) {
-                alert("Please select exactly 4 points.");
-                return;
+        startDrawingZoneButton.addEventListener('click', () => {
+            showConfigStep('configStep3Zones'); 
+            console.log("Start/Add Point to Zone button clicked. isDrawingZoneMode is now:", isDrawingZoneMode);
+        });
+
+        finishCurrentZoneButton.addEventListener('click', () => {
+            const name = zoneNameInput.value.trim();
+            if (!name) { alert("Enter zone name."); return; }
+            if (currentDrawingZonePoints.length < 3) { alert("Zone needs at least 3 points."); return; }
+            floorplanZones.push({ name: name, points: [...currentDrawingZonePoints] });
+            currentDrawingZonePoints = []; zoneNameInput.value = '';
+            updateDefinedZonesDisplay();
+            initializePointMaker(); 
+        });
+
+        clearCurrentZonePointsButton.addEventListener('click', () => {
+            currentDrawingZonePoints = [];
+            initializePointMaker(); 
+        });
+
+        function updateDefinedZonesDisplay() {
+            if (floorplanZones.length === 0) {
+                definedZonesListDiv.innerHTML = '<strong>Defined Zones:</strong> (None)'; return;
             }
-            if (!configPage_floorplanUploadFile.files[0] && !localStorage.getItem('savedConfigName')) {
-                alert("Floorplan file is missing. Please upload one in Step 1 of Configuration.");
-                showConfigStep('configStep1Upload');
-                return;
+            let listHtml = '<strong>Defined Zones:</strong><ul>';
+            floorplanZones.forEach((zone, index) => {
+                listHtml += `<li class="zone-item"><span>${zone.name} (${zone.points.length} pts)</span>
+                             <button class="action-button" data-zone-index="${index}" onclick="removeZone(${index})">Remove</button>
+                             </li>`;
+            });
+            listHtml += '</ul>';
+            definedZonesListDiv.innerHTML = listHtml;
+        }
+
+        window.removeZone = function(index) {
+            if (confirm(`Remove zone "${floorplanZones[index].name}"?`)) {
+                floorplanZones.splice(index, 1);
+                updateDefinedZonesDisplay();
+                initializePointMaker(); 
             }
+        }
+        
+        saveFullConfigurationButton.addEventListener('click', () => {
+            if (currentConfigPoints.length !== 4) { alert("Set 4 perspective points first."); return; }
+            if (!selectedFloorplanImage) { alert("Upload floorplan image first."); return; }
+
+            const floorplanFile = configPage_floorplanUploadFile.files[0];
+            const floorplanNameToSave = floorplanFile ? floorplanFile.name : localStorage.getItem(LOCAL_STORAGE_CONFIG_NAME);
             
-            const floorplanFileToSaveName = configPage_floorplanUploadFile.files[0] ? configPage_floorplanUploadFile.files[0].name : localStorage.getItem('savedConfigName');
-            const floorplanDataURLToSave = selectedFloorplanImage.src; 
+            if (!floorplanNameToSave) {
+                alert("Floorplan name is missing. Please ensure an image was uploaded or a previous config exists.");
+                return;
+            }
 
-            localStorage.setItem('savedConfigName', floorplanFileToSaveName);
-            localStorage.setItem('savedConfigDataURL', floorplanDataURLToSave);
-            localStorage.setItem('savedConfigPoints', JSON.stringify(currentConfigPoints));
+            localStorage.setItem(LOCAL_STORAGE_CONFIG_NAME, floorplanNameToSave);
+            localStorage.setItem(LOCAL_STORAGE_CONFIG_DATA_URL, selectedFloorplanImage.src);
+            localStorage.setItem(LOCAL_STORAGE_CONFIG_POINTS, JSON.stringify(currentConfigPoints.map(p => ({originalX: p.originalX, originalY: p.originalY})))); 
+            localStorage.setItem(LOCAL_STORAGE_ZONES, JSON.stringify(floorplanZones.map(zone => ({name: zone.name, points: zone.points.map(p => ({originalX: p.originalX, originalY: p.originalY})) }))));
 
-            alert(`Configuration for "${floorplanFileToSaveName}" with ${currentConfigPoints.length} points saved to browser memory.`);
-            loadAndDisplaySavedConfigInfo(); 
+            alert(`Configuration for "${floorplanNameToSave}" (Points & Zones) saved to browser.`);
+            updateLoadedConfigDisplay();
         });
+
 
         window.addEventListener('resize', () => {
-            if (document.getElementById('pageConfigureFloorplan').classList.contains('active') && 
-                document.getElementById('configStep2Points').classList.contains('active') && 
-                selectedFloorplanImage) {
+            if (document.getElementById('pageConfigureFloorplan').classList.contains('active') && selectedFloorplanImage) {
                 initializePointMaker();
+            }
+            if (document.getElementById('pageZoneMapView').classList.contains('active') && latestZoneData && latestZoneData.floorplan_url) {
+                zoneMapOverlayCanvas.width = zoneMapFloorplanImage.offsetWidth;
+                zoneMapOverlayCanvas.height = zoneMapFloorplanImage.offsetHeight;
+                drawZonesOnMap(); 
             }
         });
 
@@ -400,46 +802,38 @@
         heatmapForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             statusTextSpan.textContent = 'Status: Uploading files...';
-            resultsDiv.style.display = 'none';
-            heatmapImageElem.src = '';
-            videoLinkElem.href = '#';
+            resultsDiv.style.display = 'none'; heatmapImageElem.src = ''; videoLinkElem.href = '#';
+            generateHeatmapButton.disabled = true; processVideo_floorplanFile.disabled = true; processVideo_videoFile.disabled = true;
 
-            const pointsToUseStr = localStorage.getItem('savedConfigPoints');
+            const pointsToUseStr = localStorage.getItem(LOCAL_STORAGE_CONFIG_POINTS);
+            const zonesToUseStr = localStorage.getItem(LOCAL_STORAGE_ZONES);
             let pointsToUse = [];
-            if (pointsToUseStr) {
-                pointsToUse = JSON.parse(pointsToUseStr);
-            }
+            if (pointsToUseStr) pointsToUse = JSON.parse(pointsToUseStr);
 
             if (pointsToUse.length !== 4) {
-                alert("No valid 4-point configuration found. Please set one up in 'Configure Floorplan' and save it.");
+                alert("Valid 4-point configuration not found. Set in 'Configure Floorplan'.");
+                generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
                 return;
             }
-            if (processVideo_videoFile.files.length === 0) {
-                alert("Please select a video file.");
-                return;
-            }
-            if (processVideo_floorplanFile.files.length === 0) {
-                alert("Please select a floorplan image file for processing.");
+            if (processVideo_videoFile.files.length === 0 || processVideo_floorplanFile.files.length === 0 || !processVideo_eventTimeInput.value) {
+                alert("Ensure video, floorplan, and event time are provided.");
+                generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
                 return;
             }
 
             const formData = new FormData();
             formData.append('videoFile', processVideo_videoFile.files[0]);
             formData.append('floorplanFile', processVideo_floorplanFile.files[0]);
-
             const pointsDataForBackend = pointsToUse.map(p => `${p.originalX.toFixed(0)},${p.originalY.toFixed(0)}`).join('\n');
             formData.append('pointsData', pointsDataForBackend);
+            formData.append('videoEventTime', processVideo_eventTimeInput.value);
+            if (zonesToUseStr && JSON.parse(zonesToUseStr).length > 0) {
+                formData.append('zonesData', zonesToUseStr);
+            }
 
             try {
-                const response = await fetch(`${backendUrl}/api/heatmap_jobs`, {
-                    method: 'POST',
-                    body: formData,
-                });
-                if (response.status === 401) {
-                    alert("Session expired or not logged in. Redirecting to login.");
-                    window.location.href = '/login';
-                    return;
-                }
+                const response = await fetch(`${backendUrl}/api/heatmap_jobs`, { method: 'POST', body: formData });
+                if (response.status === 401) { window.location.href = '/login'; return; }
                 const data = await response.json();
                 if (response.ok && data.job_id) {
                     currentJobId = data.job_id;
@@ -447,10 +841,12 @@
                     pollJobStatus(currentJobId);
                 } else {
                     document.getElementById('statusText').textContent = `Status: Error - ${data.error || 'Submission failed'}`;
+                    generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
                 }
             } catch (error) {
                 console.error('Error submitting job:', error);
                 document.getElementById('statusText').textContent = `Status: Error - Could not connect to server.`;
+                generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
             }
         });
 
@@ -459,55 +855,38 @@
                 const response = await fetch(`${backendUrl}/api/heatmap_jobs/${jobId}/status`);
                 const data = await response.json();
 
-                if (response.status === 401) {
-                    alert("Session expired or not logged in. Redirecting to login.");
-                    window.location.href = '/login';
-                    return;
-                }
+                if (response.status === 401) { window.location.href = '/login'; return; }
                 if (!response.ok) {
                     document.getElementById('statusText').textContent = `Status: Error checking status - ${data.error || 'Unknown error'}`;
                     const progressBarContainer = statusDiv.querySelector('.progress-bar-container');
                     if(progressBarContainer) progressBarContainer.remove();
+                    generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
                     return;
                 }
 
-                let statusMessageText = `Status: ${data.status} (Job ID: ${jobId})`;
-                if (data.message) {
-                    statusMessageText += ` - ${data.message}`;
-                }
+                let statusMessageText = `Status: ${data.status} (Job ID: ${jobId}) ${data.message ? `- ${data.message}` : ''}`;
                 document.getElementById('statusText').textContent = statusMessageText;
 
-                const progressBarFill = document.getElementById('progressBarFill');
-                const progressBarContainer = statusDiv.querySelector('.progress-bar-container');
+                let progressBarContainer = statusDiv.querySelector('.progress-bar-container');
+                let progressBarFillElem = progressBarContainer ? progressBarContainer.querySelector('.progress-bar-fill') : null;
 
                 if (data.status === 'processing' || data.status === 'pending') {
-                    if (!progressBarContainer) { // If somehow removed, recreate
+                    if (!progressBarContainer) {
                         statusDiv.insertAdjacentHTML('beforeend', '<div class="progress-bar-container"><div class="progress-bar-fill" id="progressBarFill">0%</div></div>');
+                        progressBarFillElem = document.getElementById('progressBarFill');
                     }
-                    const progressBarFillElem = document.getElementById('progressBarFill'); // Re-query in case it was recreated
-
-                    // Try to parse percentage from message
                     const progressMatch = data.message ? data.message.match(/\((\d+)%\)/) : null;
                     if (progressMatch && progressBarFillElem) {
-                        const percentage = progressMatch[1];
-                        progressBarFillElem.style.width = percentage + '%';
-                        progressBarFillElem.textContent = percentage + '%';
-                    } else if (progressBarFillElem) {
-                        // If no percentage, show a minimal progress or keep current
-                        // For an indeterminate feel, you could animate the bar with CSS if width is small
-                        // progressBarFillElem.style.width = '5%'; // Example for non-percentage updates
-                        // progressBarFillElem.textContent = '';
+                        progressBarFillElem.style.width = progressMatch[1] + '%';
+                        progressBarFillElem.textContent = progressMatch[1] + '%';
                     }
-                    setTimeout(() => pollJobStatus(jobId), 2000); // Poll a bit faster: 2 seconds
-                } else { // Completed or Error
-                    if (progressBarFill && data.status === 'completed') { // Show 100% on completion
-                        progressBarFill.style.width = '100%';
-                        progressBarFill.textContent = '100%';
+                    setTimeout(() => pollJobStatus(jobId), POLL_INTERVAL_MS);
+                } else {
+                    if (progressBarFillElem && data.status === 'completed') {
+                        progressBarFillElem.style.width = '100%'; progressBarFillElem.textContent = '100%';
                     }
-                    // Remove progress bar after a short delay to see 100% or error state
-                    setTimeout(() => {
-                        if(progressBarContainer) progressBarContainer.remove();
-                    }, 1500);
+                    setTimeout(() => { if(progressBarContainer) progressBarContainer.remove(); }, 1500);
+                    generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
                 }
 
                 if (data.status === 'completed') {
@@ -515,15 +894,11 @@
                     heatmapImageElem.src = `${backendUrl}/api/heatmap_jobs/${jobId}/result/image?t=${new Date().getTime()}`;
                     videoLinkElem.href = `${backendUrl}/api/heatmap_jobs/${jobId}/result/video`;
                     videoLinkElem.download = `processed_video_${jobId}.mp4`;
-                } else if (data.status === 'processing' || data.status === 'pending') {
-                    // Still processing, do nothing
-                } else if (data.status === 'error') {
-                    // Error message is already displayed
                 }
-
             } catch (error) {
                 console.error('Error polling status:', error);
                 document.getElementById('statusText').textContent = `Status: Error - Could not get job status.`;
+                generateHeatmapButton.disabled = false; processVideo_floorplanFile.disabled = false; processVideo_videoFile.disabled = false;
             }
         }
 
@@ -531,23 +906,16 @@
         async function fetchJobHistory() {
             const tableBody = document.getElementById('historyTableBody');
             const historyMessage = document.getElementById('historyMessage');
-            tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:10px;">Loading history...</td></tr>'; // Updated colspan
+            tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:10px;">Loading history...</td></tr>';
             historyMessage.textContent = '';
 
             try {
                 const response = await fetch(`${backendUrl}/api/heatmap_jobs/history`);
-                if (response.status === 401) {
-                    alert("Session expired. Redirecting to login.");
-                    window.location.href = '/login';
-                    return;
-                }
-                if (!response.ok) {
-                    historyMessage.textContent = 'Error fetching history.';
-                    tableBody.innerHTML = '';
-                    return;
-                }
+                if (response.status === 401) { window.location.href = '/login'; return; }
+                if (!response.ok) { historyMessage.textContent = 'Error fetching history.'; tableBody.innerHTML = ''; return; }
+                
                 const jobs = await response.json();
-                tableBody.innerHTML = ''; // Clear loading message
+                tableBody.innerHTML = '';
                 if (jobs.length === 0) {
                     historyMessage.textContent = 'No processing history found.';
                 } else {
@@ -559,62 +927,314 @@
                         row.insertCell().textContent = job.people_counted !== null ? job.people_counted : 'N/A';
                         row.insertCell().textContent = job.status;
                         row.insertCell().textContent = job.message || 'N/A';
-                        row.insertCell().textContent = new Date(job.created_at).toLocaleString();
+                        row.insertCell().textContent = job.video_event_timestamp ? new Date(job.video_event_timestamp).toLocaleString() : (job.created_at ? new Date(job.created_at).toLocaleString() : 'N/A');
                         const actionsCell = row.insertCell();
                         if (job.status === 'completed') {
                             actionsCell.innerHTML = `<a href="${backendUrl}/api/heatmap_jobs/${job.job_id}/result/image" target="_blank">View Image</a> | <a href="${backendUrl}/api/heatmap_jobs/${job.job_id}/result/video">Download Video</a>`;
                         }
                     });
+                    styleHistoryTableRows(); // Apply styling after rows are added
                 }
             } catch (error) {
                 console.error("Error fetching history:", error);
-                historyMessage.textContent = 'Failed to load history due to a network or server error.';
-                tableBody.innerHTML = '';
+                historyMessage.textContent = 'Failed to load history.'; tableBody.innerHTML = '';
             }
         }
 
         function loadConfigIntoPointMaker() {
-            const savedDataURL = localStorage.getItem('savedConfigDataURL');
-            const savedPointsStr = localStorage.getItem('savedConfigPoints');
+            const savedDataURL = localStorage.getItem(LOCAL_STORAGE_CONFIG_DATA_URL);
+            const savedPointsStr = localStorage.getItem(LOCAL_STORAGE_CONFIG_POINTS);
+            const savedZonesStr = localStorage.getItem(LOCAL_STORAGE_ZONES);
+
+            currentConfigPoints = []; floorplanZones = []; 
+            if (savedPointsStr) currentConfigPoints = JSON.parse(savedPointsStr).map(p => ({...p, displayX:0, displayY:0})); 
+            if (savedZonesStr) {
+                floorplanZones = JSON.parse(savedZonesStr).map(zone => ({
+                    ...zone,
+                    points: zone.points.map(p => ({...p, displayX:0, displayY:0}))
+                }));
+            }
+            updateDefinedZonesDisplay();
 
             if (savedDataURL) {
                 selectedFloorplanImage = new Image();
                 selectedFloorplanImage.onload = () => {
                     originalFloorplanWidth = selectedFloorplanImage.naturalWidth;
                     originalFloorplanHeight = selectedFloorplanImage.naturalHeight;
-                    if (savedPointsStr) {
-                        currentConfigPoints = JSON.parse(savedPointsStr);
-                    } else {
-                        currentConfigPoints = [];
-                    }
+                    console.log("Image from localStorage loaded. Original dimensions:", originalFloorplanWidth, "x", originalFloorplanHeight); 
                     floorplanPreviewImage.src = savedDataURL;
                     floorplanPreviewContainer.style.display = 'block';
                     goToPointConfigButton.disabled = false;
-
-                    if (document.getElementById('pageConfigureFloorplan').classList.contains('active') && 
-                        document.getElementById('configStep2Points').classList.contains('active')) {
+                    
+                    const activeConfigPage = document.getElementById('pageConfigureFloorplan').classList.contains('active');
+                    const activeConfigStep2 = document.getElementById('configStep2Points').classList.contains('active');
+                    const activeConfigStep3 = document.getElementById('configStep3Zones').classList.contains('active');
+                    if (activeConfigPage && (activeConfigStep2 || activeConfigStep3)) {
                         initializePointMaker();
                     }
                 };
                 selectedFloorplanImage.src = savedDataURL;
             } else {
                 selectedFloorplanImage = null;
-                currentConfigPoints = [];
                 floorplanPreviewContainer.style.display = 'none';
                 goToPointConfigButton.disabled = true;
-                if (document.getElementById('pageConfigureFloorplan').classList.contains('active') && 
-                    document.getElementById('configStep2Points').classList.contains('active')) {
-                    if(ctx && pointMakerCanvas.width > 0 && pointMakerCanvas.height > 0) { // Check if canvas is initialized
-                        ctx.clearRect(0,0, pointMakerCanvas.width, pointMakerCanvas.height);
-                    }
-                    updatePointsListDisplay();
+                if (ctx && pointMakerCanvas.width > 0) ctx.clearRect(0,0, pointMakerCanvas.width, pointMakerCanvas.height);
+                updatePointsListDisplay();
+            }
+            updateLoadedConfigDisplay();
+        }
+
+        // --- Zone Map View Page Logic ---
+        let zoneMapCtx = null;
+        let latestZoneData = null; 
+
+        function loadZoneMapView() {
+            console.log("Loading Zone Map View...");
+            zoneMapFloorplanImage.src = ''; 
+            zoneMapOverlayCanvas.width = 0; 
+            zoneMapOverlayCanvas.height = 0;
+            zoneHoverInfo.style.display = 'none';
+            zoneMapMessage.textContent = 'Loading latest zone data...';
+
+            fetchLatestZoneMapData();
+        }
+
+        async function fetchLatestZoneMapData() {
+            try {
+                const response = await fetch(`${backendUrl}/api/latest_zone_map_data`);
+                if (response.status === 401) { window.location.href = '/login'; return; }
+                
+                const data = await response.json();
+
+                if (!response.ok) {
+                     zoneMapMessage.textContent = data.message || data.error || 'Error fetching zone map data.';
+                     console.error("Error fetching latest zone map data:", data.error || response.statusText);
+                     latestZoneData = null;
+                     return;
                 }
+
+                latestZoneData = data;
+                zoneMapMessage.textContent = ''; 
+
+                zoneMapFloorplanImage.onload = () => {
+                    console.log("Zone map floorplan image loaded. Natural WxH:", zoneMapFloorplanImage.naturalWidth, "x", zoneMapFloorplanImage.naturalHeight);
+                    zoneMapOverlayCanvas.width = zoneMapFloorplanImage.offsetWidth;
+                    zoneMapOverlayCanvas.height = zoneMapFloorplanImage.offsetHeight;
+                    console.log("Zone map overlay canvas resized to:", zoneMapOverlayCanvas.width, "x", zoneMapOverlayCanvas.height);
+                    if (!zoneMapCtx) zoneMapCtx = zoneMapOverlayCanvas.getContext('2d');
+                    drawZonesOnMap();
+                    setupZoneHover();
+                };
+                zoneMapFloorplanImage.onerror = () => {
+                    zoneMapMessage.textContent = 'Error loading floorplan image for map view.';
+                    console.error("Error loading zone map floorplan image:", data.floorplan_url);
+                    latestZoneData = null;
+                };
+                zoneMapFloorplanImage.src = data.floorplan_url;
+
+            } catch (error) {
+                console.error("Error fetching latest zone map data:", error);
+                zoneMapMessage.textContent = 'Could not connect to server to load zone map data.';
+                latestZoneData = null;
             }
         }
 
+        function drawZonesOnMap() {
+            if (!zoneMapCtx || !latestZoneData || !latestZoneData.zone_definitions || !zoneMapFloorplanImage.complete || zoneMapFloorplanImage.naturalWidth === 0) {
+                console.warn("drawZonesOnMap: Cannot draw, missing context, data, or valid floorplan image dimensions.");
+                return;
+            }
+
+            zoneMapCtx.clearRect(0, 0, zoneMapOverlayCanvas.width, zoneMapOverlayCanvas.height);
+
+            const originalWidth = zoneMapFloorplanImage.naturalWidth;
+            const originalHeight = zoneMapFloorplanImage.naturalHeight;
+            const scaleX = zoneMapOverlayCanvas.width / originalWidth;
+            const scaleY = zoneMapOverlayCanvas.height / originalHeight;
+
+            latestZoneData.zone_definitions.forEach(zone => {
+                if (zone.points.length < 3) return; 
+
+                zoneMapCtx.beginPath();
+                zoneMapCtx.moveTo(zone.points[0].originalX * scaleX, zone.points[0].originalY * scaleY);
+                for (let i = 1; i < zone.points.length; i++) {
+                    zoneMapCtx.lineTo(zone.points[i].originalX * scaleX, zone.points[i].originalY * scaleY);
+                }
+                zoneMapCtx.closePath();
+
+                zoneMapCtx.fillStyle = 'rgba(0, 100, 200, 0.3)'; 
+                zoneMapCtx.fill();
+                zoneMapCtx.strokeStyle = 'rgba(0, 100, 200, 0.8)'; 
+                zoneMapCtx.lineWidth = 2;
+                zoneMapCtx.stroke();
+            });
+        }
+
+        function setupZoneHover() {
+             if (!zoneMapOverlayCanvas || !latestZoneData || !latestZoneData.zone_definitions || !latestZoneData.zone_traffic_results || !zoneMapFloorplanImage.complete || zoneMapFloorplanImage.naturalWidth === 0) {
+                 console.warn("setupZoneHover: Cannot setup, missing elements, data, or valid floorplan image dimensions.");
+                 return;
+             }
+             
+             const tempCanvas = document.createElement('canvas'); 
+             tempCanvas.width = zoneMapOverlayCanvas.width;
+             tempCanvas.height = zoneMapOverlayCanvas.height;
+             const tempCtx = tempCanvas.getContext('2d');
+
+             const originalWidth = zoneMapFloorplanImage.naturalWidth;
+             const originalHeight = zoneMapFloorplanImage.naturalHeight;
+             const scaleX = zoneMapOverlayCanvas.width / originalWidth;
+             const scaleY = zoneMapOverlayCanvas.height / originalHeight;
+
+             zoneMapOverlayCanvas.onmousemove = (event) => { 
+                 const rect = zoneMapOverlayCanvas.getBoundingClientRect();
+                 const mouseX = event.clientX - rect.left;
+                 const mouseY = event.clientY - rect.top;
+                 let hoveredZone = null;
+
+                 for (const zone of latestZoneData.zone_definitions) {
+                     if (zone.points.length < 3) continue;
+                     tempCtx.beginPath();
+                     tempCtx.moveTo(zone.points[0].originalX * scaleX, zone.points[0].originalY * scaleY);
+                     for (let i = 1; i < zone.points.length; i++) {
+                         tempCtx.lineTo(zone.points[i].originalX * scaleX, zone.points[i].originalY * scaleY);
+                     }
+                     tempCtx.closePath();
+                     if (tempCtx.isPointInPath(mouseX, mouseY)) {
+                         hoveredZone = zone;
+                         break; 
+                     }
+                 }
+
+                 if (hoveredZone) {
+                     const zoneName = hoveredZone.name;
+                     const activityCount = latestZoneData.zone_traffic_results[zoneName] || 0;
+                     zoneHoverInfo.textContent = `${zoneName}: ${activityCount} activity units`;
+                     zoneHoverInfo.style.left = `${mouseX + 10}px`; 
+                     zoneHoverInfo.style.top = `${mouseY + 10}px`;
+                     zoneHoverInfo.style.display = 'block';
+                 } else {
+                     zoneHoverInfo.style.display = 'none';
+                 }
+             };
+
+             zoneMapOverlayCanvas.onmouseleave = () => { 
+                 zoneHoverInfo.style.display = 'none';
+             };
+        }
+
+
+        // --- Dashboard Overview Page Logic ---
+        async function updateDashboardOverview() {
+            totalVisitorsCountElem.textContent = 'Loading...';
+            peakHoursInfoElem.textContent = 'Loading...';
+            zoneTrafficList.innerHTML = '<p>Loading zone data...</p>';
+            zoneAnalyticsContainer.style.display = 'block'; 
+            document.getElementById('peakHoursChartContainer').innerHTML = '<canvas id="peakHoursChart"></canvas>'; // Reset canvas container
+
+            if (peakHoursChartInstance) { peakHoursChartInstance.destroy(); peakHoursChartInstance = null; }
+            
+            const selectedPeriod = document.querySelector('input[name="chartPeriod"]:checked').value;
+            console.log("Updating dashboard overview for period:", selectedPeriod);
+
+            try {
+                const response = await fetch(`${backendUrl}/api/analytics/overview?chart_period=${selectedPeriod}`);
+                if (response.status === 401) { window.location.href = '/login'; return; }
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ message: "Failed to fetch overview data." }));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Dashboard Overview Data Received:", JSON.stringify(data, null, 2)); 
+
+                totalVisitorsCountElem.textContent = data.total_visitors_today !== null ? data.total_visitors_today : 'N/A';
+                
+                let chartLabels, chartDataPoints, chartXAxisLabel, chartYAxisLabel, chartTitleText;
+
+                if (data.chart_period_type === 'daily_hourly' && data.chart_data.hourly_visitor_data) {
+                    mainChartTitleElem.textContent = "Today's Hourly Traffic";
+                    peakHoursInfoElem.textContent = (data.peak_hour_today && !data.peak_hour_today.startsWith("N/A")) ? 
+                        `Peak activity: ${data.peak_hour_today} (with ${data.peak_hour_visitor_count} visitors)` : 
+                        'No peak hour data for today. Process videos.';
+                    
+                    chartLabels = data.chart_data.hourly_visitor_data.map(item => `${item.hour}:00`);
+                    chartDataPoints = data.chart_data.hourly_visitor_data.map(item => item.count);
+                    chartXAxisLabel = 'Hour of Day';
+                    chartYAxisLabel = 'Number of Visitors';
+                    chartTitleText = 'Hourly Visitors Today';
+
+                } else if (data.chart_period_type === 'yearly_monthly' && data.chart_data.yearly_visitor_summary) {
+                    mainChartTitleElem.textContent = "Monthly Visitor Trends (Current Year)";
+                    peakHoursInfoElem.textContent = 'Displaying total visitors per month for the current year.';
+
+                    chartLabels = data.chart_data.yearly_visitor_summary.map(item => item.month_name);
+                    chartDataPoints = data.chart_data.yearly_visitor_summary.map(item => item.count);
+                    chartXAxisLabel = 'Month';
+                    chartYAxisLabel = 'Total Visitors';
+                    chartTitleText = 'Monthly Visitors This Year';
+                } else {
+                    console.error("Unknown chart_period_type or missing chart_data:", data.chart_period_type, data.chart_data);
+                    document.getElementById('peakHoursChartContainer').innerHTML = '<small style="display:flex; align-items:center; justify-content:center; height:100%; color:#6c757d;">Invalid chart data received.</small>';
+                    peakHoursInfoElem.textContent = 'Could not load chart data.';
+                }
+
+                if (chartLabels && chartDataPoints) {
+                    const chartCanvas = document.getElementById('peakHoursChart').getContext('2d');
+                    peakHoursChartInstance = new Chart(chartCanvas, {
+                        type: 'bar', 
+                        data: { 
+                            labels: chartLabels, 
+                            datasets: [{ 
+                                label: chartTitleText, 
+                                data: chartDataPoints, 
+                                backgroundColor: 'rgba(0, 123, 255, 0.6)', 
+                                borderColor: 'rgba(0, 123, 255, 1)', 
+                                borderWidth: 1 
+                            }] 
+                        },
+                        options: { 
+                            responsive: true, 
+                            maintainAspectRatio: false, 
+                            scales: { 
+                                y: { beginAtZero: true, title: { display: true, text: chartYAxisLabel }, ticks: { stepSize: 1 } }, 
+                                x: { title: { display: true, text: chartXAxisLabel } } 
+                            }, 
+                            plugins: { legend: { display: true, labels: {boxWidth: 20} } } 
+                        }
+                    });
+                } else if (!document.getElementById('peakHoursChartContainer').innerHTML.includes('small')) { 
+                     document.getElementById('peakHoursChartContainer').innerHTML = '<small style="display:flex; align-items:center; justify-content:center; height:100%; color:#6c757d;">No data available for the selected chart period.</small>';
+                }
+
+
+                if (data.zone_traffic_summary && data.zone_traffic_summary.length > 0) {
+                    let zoneHtml = '<ul>';
+                    data.zone_traffic_summary.forEach(zone => {
+                        zoneHtml += `<li><strong>${zone.name}:</strong> ${zone.percentage.toFixed(1)}% traffic (${zone.count} activity units, ${zone.classification})</li>`;
+                    });
+                    zoneHtml += '</ul>';
+                    zoneTrafficList.innerHTML = zoneHtml;
+                } else {
+                    zoneTrafficList.innerHTML = '<p>No zone-specific traffic data available for today. Ensure videos are processed with defined zones.</p>';
+                }
+
+
+            } catch (error) {
+                console.error("Error fetching dashboard overview:", error);
+                totalVisitorsCountElem.textContent = 'Error';
+                peakHoursInfoElem.textContent = 'Could not load peak hours.';
+                document.getElementById('peakHoursChartContainer').innerHTML = '<small style="display:flex; align-items:center; justify-content:center; height:100%; color:red;">Error loading chart.</small>';
+                zoneTrafficList.innerHTML = '<p style="color:red;">Error loading zone traffic data.</p>';
+            }
+        }
+        
+        chartPeriodRadios.forEach(radio => {
+            radio.addEventListener('change', updateDashboardOverview);
+        });
+
         // --- Initial Setup ---
-        showPage('pageProcessVideo'); 
-        loadAndDisplaySavedConfigInfo(); 
+        if (pointMakerCanvas) ctx = pointMakerCanvas.getContext('2d');
+        showPage('pageDashboardOverview');
     </script>
 </body>
 </html>
