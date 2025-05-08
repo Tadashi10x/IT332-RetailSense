@@ -5,66 +5,143 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Heatmap Generator</title>
     <style>
-        /* Basic Reset & Font */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+        :root {
+            --primary-color: #3B82F6; /* Blue 500 */
+            --primary-hover-color: #2563EB; /* Blue 600 */
+            --primary-light-color: #EFF6FF; /* Blue 50 */
+            --secondary-color: #10B981; /* Emerald 500 */
+            --text-primary: #1F2937; /* Gray 800 */
+            --text-secondary: #4B5563; /* Gray 600 */
+            --text-light: #6B7280; /* Gray 500 */
+            --bg-main: #F3F4F6; /* Gray 100 */
+            --bg-card: #FFFFFF;
+            --bg-header-nav: #FFFFFF;
+            --border-color: #D1D5DB; /* Gray 300 */
+            --border-light: #E5E7EB; /* Gray 200 */
+            --error-color: #EF4444; /* Red 500 */
+            --success-color: #10B981; /* Emerald 500 */
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --border-radius-sm: 0.25rem; /* 4px */
+            --border-radius-md: 0.5rem; /* 8px */
+            --border-radius-lg: 0.75rem; /* 12px */
+
+            /* Dark Theme Variables (will be applied via body.dark-mode) */
+            --primary-color-dark: #60A5FA; /* Blue 400 */
+            --primary-hover-color-dark: #3B82F6; /* Blue 500 */
+            --primary-light-color-dark: #1E40AF; /* Blue 800 (adjusted for better contrast with light text) */
+            
+            --text-primary-dark: #F3F4F6; /* Gray 100 */
+            --text-secondary-dark: #D1D5DB; /* Gray 300 */
+            --text-light-dark: #9CA3AF; /* Gray 400 */
+
+            --bg-main-dark: #1F2937; /* Gray 800 */
+            --bg-card-dark: #374151; /* Gray 700 */
+            --bg-header-nav-dark: #111827; /* Gray 900 */
+
+            --border-color-dark: #4B5563; /* Gray 600 - For axis lines */
+            --border-light-dark: #4B5563; /* Gray 600 - For grid lines, making them visible against Gray 700 card */
+            
+            --error-color-dark: #F87171; /* Red 400 */
+            --success-color-dark: #34D399; /* Emerald 400 */
+            /* Shadows can remain similar or be slightly adjusted if needed, for now, we'll use the same definition and let the dark bg provide contrast */
         }
+
+        /* Basic Reset & Font */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
             margin: 0; 
             display: flex; 
             flex-direction: column; 
             min-height: 100vh; 
-            background-color: #f4f7f9; /* Lighter background */
-            color: #333;
+            background-color: var(--bg-main);
+            color: var(--text-primary);
             line-height: 1.6;
+        }
+
+        body.dark-mode {
+            --primary-color: var(--primary-color-dark);
+            --primary-hover-color: var(--primary-hover-color-dark);
+            --primary-light-color: var(--primary-light-color-dark);
+            
+            --text-primary: var(--text-primary-dark);
+            --text-secondary: var(--text-secondary-dark);
+            --text-light: var(--text-light-dark);
+
+            --bg-main: var(--bg-main-dark);
+            --bg-card: var(--bg-card-dark);
+            --bg-header-nav: var(--bg-header-nav-dark);
+
+            --border-color: var(--border-color-dark);
+            --border-light: var(--border-light-dark);
+            
+            --error-color: var(--error-color-dark);
+            --success-color: var(--success-color-dark);
+
+            /* Example: Adjust shadow for dark mode if needed, or keep them if they look good */
+            /* --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.36); */
         }
 
         /* Header */
         header { 
-            background-color: #2c3e50; /* Darker, more professional header */
+            background-color: var(--bg-header-nav); 
             color: white; 
             padding: 15px 30px; 
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow-sm);
+            border-bottom: 1px solid var(--border-light);
         }
-        header h1 { margin: 0; font-size: 1.5em; cursor: pointer; }
+        header h1 { 
+            margin: 0; 
+            font-size: 1.6em; /* Slightly larger */
+            font-weight: 600;
+            cursor: pointer; 
+            color: var(--primary-color); /* Use primary color for title */
+        }
         header button#logoutButton { 
-            background-color: #e74c3c; /* Softer red */
+            background-color: var(--error-color);
             color: white; 
             border: none; 
             padding: 8px 15px; 
-            border-radius: 5px; 
+            border-radius: var(--border-radius-md); 
             cursor: pointer; 
-            transition: background-color 0.3s ease;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
         }
-        header button#logoutButton:hover { background-color: #c0392b; }
+        header button#logoutButton:hover { background-color: #DC2626; /* Red 600 */ }
 
         /* Navigation */
         nav { 
-            background-color: #ffffff; 
+            background-color: var(--bg-header-nav); 
             padding: 0 20px; 
-            border-bottom: 1px solid #e0e0e0; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            /* border-bottom: 1px solid var(--border-light); Removed for a cleaner look */
+            box-shadow: var(--shadow-sm); /* Shadow provides separation */
+            display: flex; /* Allow buttons to space out nicely */
         }
         nav button.main-nav-button { 
             background-color: transparent; 
             border: none; 
             padding: 15px 20px; 
             cursor: pointer; 
-            font-size: 1em; 
+            font-size: 0.95em; 
             margin-right: 5px;
-            color: #555;
-            transition: color 0.3s ease, border-bottom-color 0.3s ease;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: color 0.2s ease, border-bottom-color 0.2s ease;
             border-bottom: 3px solid transparent;
+            border-top: 3px solid transparent; /* Balance for active state */
         }
-        nav button.main-nav-button:hover { color: #007bff; }
-        nav button:disabled { color: #ccc; cursor: not-allowed; }
-        nav button.active { font-weight: 600; color: #007bff; border-bottom: 3px solid #007bff; }
+        nav button.main-nav-button:hover { color: var(--primary-color); }
+        nav button:disabled { color: var(--border-color); cursor: not-allowed; }
+        nav button.active { 
+            font-weight: 600; 
+            color: var(--primary-color); 
+            border-bottom: 3px solid var(--primary-color); 
+        }
         
         .page-section { display: none; }
         .page-section.active { display: block; }
@@ -72,21 +149,34 @@
         .content-section.active { display: block; }
 
         /* Main Container */
-        .container { flex-grow: 1; max-width: 960px; margin: 30px auto; padding: 20px; }
+        .container { 
+            flex-grow: 1; 
+            max-width: 1100px; /* Slightly wider for modern feel */
+            margin: 30px auto; 
+            padding: 25px; 
+        }
 
-        h2 { font-size: 1.8em; color: #2c3e50; margin-bottom: 20px; }
-        h3 { font-size: 1.4em; color: #34495e; margin-bottom: 15px; }
-        p { margin-bottom: 10px; color: #555; }
+        h2 { font-size: 1.75em; color: var(--text-primary); margin-bottom: 25px; font-weight: 600; }
+        h3 { font-size: 1.25em; color: var(--text-primary); margin-bottom: 18px; font-weight: 500; }
+        p { margin-bottom: 12px; color: var(--text-secondary); }
+        small { color: var(--text-light); font-size: 0.875em; }
 
-        #status, #results { margin-top: 20px; padding: 15px; border: 1px solid #e0e0e0; background-color: #fff; border-radius: 5px; }
+        #status, #results { 
+            margin-top: 25px; 
+            padding: 20px; 
+            border: 1px solid var(--border-light); 
+            background-color: var(--bg-card); 
+            border-radius: var(--border-radius-lg); 
+            box-shadow: var(--shadow-md);
+        }
         #heatmapImage { max-width: 100%; height: auto; margin-top: 10px; }
-        #pointMakerCanvas { border:1px solid #ccc; cursor:crosshair; max-width: 100%; height: auto; border-radius: 5px; }
+        #pointMakerCanvas { border:1px solid var(--border-color); cursor:crosshair; max-width: 100%; height: auto; border-radius: var(--border-radius-md); }
         
         /* Progress Bar */
         .progress-bar-container {
             width: 100%;
-            background-color: #e0e0e0;
-            border-radius: 4px;
+            background-color: var(--border-light);
+            border-radius: var(--border-radius-md);
             margin-top: 8px;
             height: 22px;
             overflow: hidden; 
@@ -94,8 +184,8 @@
         .progress-bar-fill {
             height: 100%;
             width: 0%; 
-            background-color: #007bff;
-            border-radius: 4px; 
+            background-color: var(--primary-color);
+            border-radius: var(--border-radius-md); 
             text-align: center;
             line-height: 22px; 
             color: white;
@@ -106,24 +196,24 @@
 
         /* Analytics Card */
         .analytics-card {
-            background-color: #ffffff;
-            border: 1px solid #d1d8dd;
-            border-radius: 8px;
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-light);
+            border-radius: var(--border-radius-lg);
             padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow-md);
         }
         .analytics-card h3 {
             margin-top: 0;
-            color: #0056b3; 
+            color: var(--text-primary); 
         }
         .analytics-card .metric {
             font-size: 2.2em;
             font-weight: bold;
-            color: #007bff; 
+            color: var(--primary-color); 
             margin: 10px 0; 
         }
-        .quick-actions button { margin-right: 10px; margin-bottom: 10px; }
+        .quick-actions button { margin-right: 12px; margin-bottom: 12px; }
         .zone-item {
             display: flex;
             justify-content: space-between;
@@ -137,60 +227,310 @@
         .zone-item button {
             padding: 3px 8px;
             font-size: 0.9em;
-            background-color: #dc3545; 
-            border-color: #dc3545;
+            background-color: var(--error-color); 
+            border-color: var(--error-color);
+            border-radius: var(--border-radius-sm);
         }
         .zone-item button:hover {
-            background-color: #c82333;
+            background-color: #DC2626; /* Red 600 */
         }
 
         /* Forms */
-        label { display: block; margin-top: 15px; margin-bottom: 5px; font-weight: 600; color: #444; }
+        label { display: block; margin-top: 15px; margin-bottom: 6px; font-weight: 500; color: var(--text-secondary); }
         input[type="file"], 
         input[type="text"],
         input[type="datetime-local"] { 
             margin-top: 5px; 
             padding: 10px 15px; 
-            border-radius: 5px; 
-            border: 1px solid #ccc; 
-            background-color: white; 
-            color: #333;
+            border-radius: var(--border-radius-md); 
+            border: 1px solid var(--border-color); 
+            background-color: var(--bg-card); 
+            color: var(--text-primary);
             width: 100%; /* Make inputs take full width of their container */
             font-size: 1em;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        input[type="file"] { padding: 8px; } /* Slightly less padding for file input */
+        input[type="file"] { 
+            padding: 10px; 
+            background-color: var(--bg-main);
+        }
+        input[type="file"]::file-selector-button {
+            padding: 8px 12px;
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            margin-right: 10px;
+            transition: background-color 0.2s ease;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background-color: var(--primary-light-color);
+            border-color: var(--primary-color);
+        }
+        input[type="text"]:focus,
+        input[type="datetime-local"]:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); /* Focus ring */
+        }
 
         /* Buttons */
         button, .action-button, button[type="submit"] { 
             margin-top: 10px; 
             padding: 10px 20px; 
-            border-radius: 5px; 
+            border-radius: var(--border-radius-md); 
             border: none; 
-            background-color: #007bff; 
+            background-color: var(--primary-color); 
             color:white; 
             cursor:pointer;
             font-size: 1em;
             font-weight: 500;
-            transition: background-color 0.3s ease, transform 0.1s ease;
+            transition: background-color 0.2s ease, transform 0.1s ease;
         }
         button:hover, .action-button:hover, button[type="submit"]:hover {
-            background-color: #0056b3;
+            background-color: var(--primary-hover-color);
         }
         button:active, .action-button:active, button[type="submit"]:active {
             transform: translateY(1px);
         }
-        button:disabled { background-color: #ccc; border-color: #ccc; cursor: not-allowed; transform: none;}
+        button:disabled { background-color: var(--border-color); color: var(--text-light); cursor: not-allowed; transform: none;}
         .chart-filter-options { margin-bottom: 15px; }
         .chart-filter-options label { margin-right: 10px; display: inline-block;}
         .chart-filter-options input[type="radio"] { margin-right: 5px;}
+
+        /* History Table */
+        #historyTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px; /* Increased margin */
+            font-size: 0.875em; /* Slightly smaller for more data density */
+            box-shadow: var(--shadow-md);
+            border-radius: var(--border-radius-lg); 
+            overflow: hidden; 
+            background-color: var(--bg-card);
+        }
+        #historyTable thead tr {
+            background-color: var(--primary-light-color); 
+            text-align: left;
+            border-bottom: 2px solid var(--primary-color); 
+            color: var(--primary-color);
+        }
+        #historyTable th, #historyTable td {
+            padding: 12px 15px; /* Uniform padding */
+            border-bottom: 1px solid var(--border-light); 
+        }
+        #historyTable th {
+            font-weight: 600; 
+        }
+        #historyTable tbody tr:nth-child(even) {
+            background-color: var(--bg-main); 
+        }
+        #historyTable tbody tr:hover {
+            background-color: var(--primary-light-color); /* Consistent hover */
+        }
+        #historyTable td {
+            color: var(--text-secondary); 
+        }
+        .history-filename-col, .history-floorplan-col {
+            max-width: 180px; /* Adjust as needed */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap; /* Important for ellipsis to work on a single line */
+            color: var(--text-primary); /* Make filenames slightly more prominent */
+        }
+        .history-message-col {
+            max-width: 250px; 
+            overflow-wrap: break-word;
+            word-break: break-word; 
+        }
+        .history-actions-col a {
+            color: var(--primary-color);
+            text-decoration: none;
+            margin-right: 10px;
+            font-weight: 500;
+        }
+        .history-actions-col a:hover {
+            text-decoration: underline;
+            color: var(--primary-hover-color);
+        }
+        .history-table-message-row td {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-light); 
+            font-style: italic;
+        }
+        #historyMessage {
+            text-align: center;
+            margin-top: 15px;
+            color: var(--text-secondary);
+        }
+
+        #loadedConfigInfo {
+            padding: 15px; background-color: var(--primary-light-color); border-radius: var(--border-radius-md); margin-bottom:20px; border: 1px solid var(--primary-color); color: var(--primary-color);
+        }
+
+        /* Dashboard Overview Layout */
+        .dashboard-layout-grid {
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            gap: 25px; /* Gap between main column and sidebar */
+        }
+
+        .dashboard-main-column {
+            flex: 3; /* Takes up more space, e.g., 70-75% */
+            min-width: 0; /* Prevents overflow issues with flex items */
+            display: flex;
+            flex-direction: column;
+            gap: 25px; /* Gap between rows/cards in the main column */
+        }
+
+        .dashboard-sidebar-column {
+            flex: 1; /* Takes up less space, e.g., 25-30% */
+            min-width: 280px; /* Minimum width for the sidebar */
+            display: flex;
+            flex-direction: column;
+            gap: 25px; /* Gap between items in sidebar */
+        }
+
+        .dashboard-row-cards {
+            display: flex;
+            gap: 25px; /* Gap between cards in the row */
+            flex-wrap: wrap; /* Allow cards to wrap if not enough space */
+        }
+
+        .dashboard-row-cards > .analytics-card {
+            flex: 1; /* Each card in the row tries to take equal space */
+            min-width: 250px; /* Minimum width for cards in a row before wrapping */
+        }
+
+        .quick-actions.analytics-card { /* Style quick actions as a card */
+            padding: 20px;
+        }
+        .quick-actions.analytics-card h3 {
+            margin-bottom: 15px;
+        }
+        .quick-actions.analytics-card button {
+            display: block; /* Stack buttons vertically */
+            width: 100%;
+            margin-bottom: 10px;
+            margin-right: 0; /* Resetting any previous horizontal margin */
+        }
+        .quick-actions.analytics-card button:last-child {
+            margin-bottom: 0;
+        }
+        /* Style for lists within analytics cards for better spacing */
+        .analytics-card ul {
+            padding-left: 20px; /* Add padding to the list itself */
+        }
+        
+        /* Configure Floorplan Page Specifics */
+        #pointsList {
+            list-style-type: none;
+            padding-left: 0;
+            margin-top: 8px;
+        }
+        #pointsList li {
+            background-color: var(--bg-main);
+            padding: 8px 12px;
+            border-radius: var(--border-radius-sm);
+            margin-bottom: 6px;
+            border: 1px solid var(--border-light);
+            font-size: 0.9em;
+        }
+
+        /* Theme Toggle Switch */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 25px; /* Space between toggle and logout button */
+        }
+        .theme-switch-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between switch and label */
+        }
+        .theme-label {
+            font-size: 0.875em;
+            color: var(--text-secondary); 
+            font-weight: 500;
+            user-select: none; /* Prevent text selection on label click */
+        }
+        .theme-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px; 
+            height: 26px; 
+        }
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--border-color); 
+            transition: .3s;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px; 
+            width: 20px; 
+            left: 3px; 
+            bottom: 3px; 
+            background-color: white; /* Knob color */
+            transition: .3s;
+        }
+        input:checked + .slider { background-color: var(--primary-color); }
+        input:focus + .slider { box-shadow: 0 0 1px var(--primary-color); }
+        input:checked + .slider:before { transform: translateX(24px); }
+        .slider.round { border-radius: 26px; }
+        .slider.round:before { border-radius: 50%; }
+
+        /* Zone Map View Specifics */
+        #zoneHoverInfo {
+            position: absolute;
+            background-color: rgba(31, 41, 55, 0.9); /* Dark semi-transparent (Gray-800 based) */
+            color: var(--text-primary-dark); /* Light text (e.g., Gray-100) */
+            padding: 8px 12px;
+            border-radius: var(--border-radius-md);
+            display: none; /* Initially hidden */
+            pointer-events: none; /* Doesn't interfere with mouse events on canvas */
+            font-size: 0.875em;
+            box-shadow: var(--shadow-lg); /* More prominent shadow for a floating effect */
+            z-index: 1000; /* Ensure it's on top */
+            border: 1px solid rgba(75, 85, 99, 0.5); /* Subtle border (Gray-600 based) */
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease; /* Smooth theme transition */
+        }
+        body.dark-mode #zoneHoverInfo {
+            background-color: rgba(229, 231, 235, 0.9); /* Light semi-transparent (Gray-200 based) */
+            color: var(--text-primary); /* Dark text (e.g., Gray-800) */
+            border: 1px solid rgba(156, 163, 175, 0.5); /* Subtle border (Gray-400 based) */
+        }
+
 
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
-        <h1 id="dashboardTitle">RetailSense Dashboard</h1>
-        <button id="logoutButton">Logout</button>
+        <h1 id="dashboardTitle" style="cursor:pointer;">RetailSense</h1>
+        <div class="header-controls">
+            <div class="theme-switch-wrapper">
+                <label class="theme-switch" for="themeToggleCheckbox" title="Toggle theme">
+                    <input type="checkbox" id="themeToggleCheckbox" />
+                    <span class="slider round"></span>
+                </label>
+                <span id="themeLabel" class="theme-label">Light Mode</span>
+            </div>
+            <button id="logoutButton">Logout</button>
+        </div>
     </header>
 
     <nav>
@@ -205,65 +545,73 @@
         <!-- Page for Dashboard Overview -->
         <section id="pageDashboardOverview" class="page-section">
             <h2>Store Analytics Overview</h2>
-            
-            <div class="analytics-card">
-                <h3>Total Visitors Today</h3>
-                <p id="totalVisitorsCount" class="metric">--</p>
-                <small>Based on processed video data for the current day.</small>
-            </div>
+            <div class="dashboard-layout-grid">
+                <div class="dashboard-main-column">
+                    <div class="dashboard-row-cards">
+                        <div class="analytics-card" id="totalVisitorsCard">
+                            <h3>Total Visitors Today</h3>
+                            <p id="totalVisitorsCount" class="metric">--</p>
+                            <small>Based on processed video data for the current day.</small>
+                        </div>
+                        <div id="zoneAnalyticsContainer" class="analytics-card">
+                            <h3>Zone Traffic Analysis (Today)</h3>
+                            <div id="zoneTrafficList">
+                                <p>Process videos with defined zones to see analysis here.</p>
+                            </div>
+                        </div>
+                    </div>
 
-            <div class="analytics-card">
-                <h3 id="mainChartTitle">Visitor Trends</h3>
-                <div class="chart-filter-options">
-                    <label><input type="radio" name="chartPeriod" value="daily_hourly" checked> Today's Hourly Traffic</label>
-                    <label><input type="radio" name="chartPeriod" value="yearly_monthly"> Monthly Trends (Current Year)</label>
+                    <div class="analytics-card" id="visitorTrendsCard">
+                        <h3 id="mainChartTitle">Visitor Trends</h3>
+                        <div class="chart-filter-options">
+                            <label><input type="radio" name="chartPeriod" value="daily_hourly" checked> Today's Hourly Traffic</label>
+                            <label><input type="radio" name="chartPeriod" value="yearly_monthly"> Monthly Trends (Current Year)</label>
+                        </div>
+                        <p id="peakHoursInfo" style="font-size: 1.1em;">Data not yet available. Process videos to see peak times.</p>
+                        <div id="peakHoursChartContainer" style="margin-top:15px; min-height: 300px; /* Slightly increased min-height */ position: relative;">
+                            <canvas id="peakHoursChart"></canvas>
+                        </div>
+                    </div>
                 </div>
-                <p id="peakHoursInfo" style="font-size: 1.1em;">Data not yet available. Process videos to see peak times.</p>
-                <div id="peakHoursChartContainer" style="margin-top:15px; min-height: 250px; position: relative;">
-                    <canvas id="peakHoursChart"></canvas>
+
+                <div class="dashboard-sidebar-column">
+                    <div class="quick-actions analytics-card">
+                        <h3>Quick Actions</h3>
+                        <button id="quickActionProcessVideo" class="action-button">Process New Video</button>
+                        <button id="quickActionCheckHistory" class="action-button">View Processing History</button>
+                    </div>
                 </div>
-            </div>
-
-            <div id="zoneAnalyticsContainer" class="analytics-card" style="display:none;">
-                <h3>Zone Traffic Analysis (Today)</h3>
-                <div id="zoneTrafficList">
-                    <p>Process videos with defined zones to see analysis here.</p>
-                </div>
-            </div>
-
-
-            <div class="quick-actions" style="margin-top: 30px;">
-                <h3>Quick Actions</h3>
-                <button id="quickActionProcessVideo" class="action-button">Process New Video</button>
-                <button id="quickActionCheckHistory" class="action-button">View Processing History</button>
             </div>
         </section>
 
         <!-- Page for Processing Video -->
         <section id="pageProcessVideo" class="page-section">
             <h2>Process Video for Heatmap</h2>
-            <div id="loadedConfigInfo" style="padding: 10px; background-color: #e9ecef; border-radius: 4px; margin-bottom:15px;">
+            <div id="loadedConfigInfo">
                 <p><strong>Loaded Point Configuration:</strong> <span id="loadedFloorplanName">None</span></p>
                 <p>Points Status: <span id="loadedPointsStatus">Not Set</span></p>
                 <p>Zones Status: <span id="loadedZonesStatus">Not Set</span></p>
-                <small>If a point configuration and zones are loaded from "Configure Floorplan", those will be used with the floorplan you select below. Otherwise, you must set them up in "Configure Floorplan" first.</small>
+                <small style="color: inherit;">If a point configuration and zones are loaded from "Configure Floorplan", those will be used with the floorplan you select below. Otherwise, you must set them up in "Configure Floorplan" first.</small>
             </div>
-            <p>Upload your video file. The floorplan, points, and zones you configured will be used.</p>
-            <form id="heatmapForm">
-                <div>
-                    <label for="processVideo_floorplanFile">Floorplan Image File (PNG, JPG):</label>
-                    <input type="file" id="processVideo_floorplanFile" name="floorplanFile" accept=".png,.jpg,.jpeg" required>
-                </div>
-                <div>
-                    <label for="processVideo_videoFile">Video File (MP4, AVI):</label>
-                    <input type="file" id="processVideo_videoFile" name="videoFile" accept=".mp4,.avi,.mov" required>
-                </div>
-                <div>
-                    <label for="processVideo_eventTime">Date and Time of Video Recording:</label>
-                    <input type="datetime-local" id="processVideo_eventTime" name="videoEventTime" required style="padding: 10px 15px;">
-                </div>
-                <button type="submit" style="margin-top:10px;" id="generateHeatmapButton">Generate Heatmap</button>
-            </form>
+            <div class="analytics-card">
+                <h3>Upload Files & Set Time</h3>
+                <p>Select the floorplan image, the video file to be processed, and specify the date and time of the video recording. The currently loaded point configuration and zones (if any) will be applied.</p>
+                <form id="heatmapForm" style="margin-top: 20px;">
+                    <div>
+                        <label for="processVideo_floorplanFile">Floorplan Image File (PNG, JPG):</label>
+                        <input type="file" id="processVideo_floorplanFile" name="floorplanFile" accept=".png,.jpg,.jpeg" required>
+                    </div>
+                    <div>
+                        <label for="processVideo_videoFile">Video File (MP4, AVI):</label>
+                        <input type="file" id="processVideo_videoFile" name="videoFile" accept=".mp4,.avi,.mov" required>
+                    </div>
+                    <div>
+                        <label for="processVideo_eventTime">Date and Time of Video Recording:</label>
+                        <input type="datetime-local" id="processVideo_eventTime" name="videoEventTime" required>
+                    </div>
+                    <button type="submit" id="generateHeatmapButton">Generate Heatmap</button>
+                </form>
+            </div>
             <div id="status">
                 <p><span id="statusText">Status: Idle</span></p>
             </div>
@@ -279,91 +627,94 @@
         <!-- Page for Configuring Floorplan -->
         <section id="pageConfigureFloorplan" class="page-section">
             <h2>Configure Floorplan, Points, and Zones</h2>
-            <div class="content-section active" id="configStep1Upload">
+
+            <div class="content-section active analytics-card" id="configStep1Upload">
                 <h3>Step 1: Upload Floorplan Image</h3>
                 <p>Upload the floorplan image you want to use for the heatmap.</p>
                 <div>
                     <label for="configPage_floorplanUploadFile">Floorplan Image (PNG, JPG):</label>
                     <input type="file" id="configPage_floorplanUploadFile" accept=".png,.jpg,.jpeg">
                 </div>
-                <div id="floorplanPreviewContainer" style="margin-top:20px; display:none;">
+                <div id="floorplanPreviewContainer" style="margin-top:15px; display:none;">
                     <h4>Floorplan Preview:</h4>
-                    <img id="floorplanPreviewImage" src="#" alt="Floorplan Preview" style="max-width:100%; max-height:300px; border:1px solid #ccc;"/>
+                    <img id="floorplanPreviewImage" src="#" alt="Floorplan Preview" style="max-width:100%; max-height:300px; border:1px solid var(--border-color);"/>
                 </div>
-                <button id="goToPointConfigButton" class="action-button" style="margin-top:10px;" disabled>Next: Configure Points</button>
+                <button id="goToPointConfigButton" class="action-button" style="margin-top:15px;" disabled>Next: Configure Points</button>
             </div>
 
-            <div class="content-section" id="configStep2Points"> 
+            <div class="content-section analytics-card" id="configStep2Points"> 
                 <h3>Step 2: Configure Perspective Points</h3>
                 <p>Click on the floorplan to select 4 points: Top-Left, Top-Right, Bottom-Right, Bottom-Left of the camera's view on the floorplan.</p>
                 <canvas id="pointMakerCanvas"></canvas>
                 <div id="pointsCoordinates" style="margin-top:10px;">
                     <p>Selected Perspective Points (up to 4):</p>
-                    <ul id="pointsList" style="list-style-type: none; padding-left: 0;"></ul>
+                    <ul id="pointsList"></ul>
                 </div>
-                <button id="resetPointsButton" class="action-button">Reset Perspective Points</button>
-                <button id="goToZoneConfigButton" class="action-button" style="margin-top:10px;" disabled>Next: Define Zones</button>
+                <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
+                    <button id="resetPointsButton" class="action-button" style="margin-top:0;">Reset Perspective Points</button>
+                    <button id="goToZoneConfigButton" class="action-button" style="margin-top:0;" disabled>Next: Define Zones</button>
+                </div>
             </div>
 
-            <div class="content-section" id="configStep3Zones"> 
+            <div class="content-section analytics-card" id="configStep3Zones"> 
                 <h3>Step 3: Define Zones (Optional)</h3>
                 <p>Click on the floorplan canvas (shown in Step 2 area) to define polygon points for a zone. Give it a name and save. Zones are drawn in blue.</p>
-                <div>
-                    <label for="zoneNameInput">Zone Name:</label>
-                    <input type="text" id="zoneNameInput" placeholder="e.g., Aisle 1, Cold Section">
-                    <button type="button" id="startDrawingZoneButton" class="action-button" style="margin-left: 10px;">Start/Add Point to Zone</button>
-                    <button type="button" id="finishCurrentZoneButton" class="action-button">Finish & Save Current Zone</button>
-                    <button type="button" id="clearCurrentZonePointsButton" class="action-button">Clear Current Zone Points</button>
+                <div class="zone-controls-group" style="margin-top: 15px;">
+                    <div>
+                        <label for="zoneNameInput">Zone Name:</label>
+                        <input type="text" id="zoneNameInput" placeholder="e.g., Aisle 1, Cold Section" style="margin-bottom: 10px;">
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <button type="button" id="startDrawingZoneButton" class="action-button" style="margin-top:0; flex-grow: 1;">Start/Add Point</button>
+                        <button type="button" id="finishCurrentZoneButton" class="action-button" style="margin-top:0; flex-grow: 1;">Finish & Save Zone</button>
+                        <button type="button" id="clearCurrentZonePointsButton" class="action-button" style="margin-top:0; flex-grow: 1;">Clear Current Points</button>
+                    </div>
                 </div>
-                <div id="definedZonesList" style="margin-top: 15px; background-color: #f9f9f9; padding:10px; border-radius:4px;">
+                <div id="definedZonesList" style="margin-top: 20px; background-color: var(--bg-main); padding:15px; border-radius:var(--border-radius-md); border: 1px solid var(--border-light);">
                     <strong>Defined Zones:</strong> (None)
                 </div>
-                <button id="saveFullConfigurationButton" class="action-button" style="margin-top:20px;">Save Full Configuration (Points & Zones)</button>
+                <button id="saveFullConfigurationButton" class="action-button" style="margin-top:20px; width: 100%;">Save Full Configuration (Points & Zones)</button>
             </div>
         </section>
 
         <!-- Page for Zone Map View -->
         <section id="pageZoneMapView" class="page-section">
             <h2>Latest Zone Map View</h2>
-            <p>Visual representation of zones and traffic from the most recent processed video with zone data.</p>
-            <div id="zoneMapContainer" style="position: relative; margin-top: 20px; border: 1px solid #ccc; max-width: 100%;">
-                <img id="zoneMapFloorplanImage" src="" alt="Floorplan with Zones" style="display: block; max-width: 100%; height: auto;">
-                <canvas id="zoneMapOverlayCanvas" style="position: absolute; top: 0; left: 0; pointer-events: auto;"></canvas> 
-                <div id="zoneHoverInfo" style="position: absolute; background-color: rgba(0,0,0,0.7); color: white; padding: 5px; border-radius: 4px; display: none; pointer-events: none;"></div>
+            <div class="analytics-card">
+                <p>Visual representation of zones and traffic from the most recent processed video with defined zones. Hover over a zone to see its activity.</p>
+                <div id="zoneMapContainer" style="position: relative; margin-top: 20px; max-width: 100%; border: 1px solid var(--border-color); border-radius: var(--border-radius-md); overflow: hidden;">
+                    <img id="zoneMapFloorplanImage" src="" alt="Floorplan with Zones" style="display: block; max-width: 100%; height: auto; border-radius: var(--border-radius-md);">
+                    <canvas id="zoneMapOverlayCanvas" style="position: absolute; top: 0; left: 0; pointer-events: auto; border-radius: var(--border-radius-md);"></canvas> 
+                    <div id="zoneHoverInfo"></div>
+                </div>
+                <p id="zoneMapMessage" style="text-align: center; margin-top: 15px;"></p>
             </div>
-            <p id="zoneMapMessage" style="text-align: center; margin-top: 10px;"></p>
         </section>
 
         <!-- Page for History -->
         <section id="pageHistory" class="page-section">
             <h2>Processing History</h2>
-            <table id="historyTable" style="width:100%; border-collapse: collapse; margin-top:15px;">
-                <thead>
-                    <tr style="background-color:#e9ecef; text-align:left; border-bottom: 2px solid #cdd5db;">
-                        <th style="padding:12px 8px;">Job ID</th>
-                        <th style="padding:12px 8px;">Video</th>
-                        <th style="padding:12px 8px;">Floorplan</th>
-                        <th style="padding:12px 8px;">People</th>
-                        <th style="padding:12px 8px;">Status</th>
-                        <th style="padding:12px 8px;">Message</th>
-                        <th style="padding:12px 8px;">Event Time</th><th style="padding:12px 8px;">Actions</th></tr>
-                </thead>
-                <tbody id="historyTableBody"></tbody>
-            </table>
-            <p id="historyMessage" style="text-align:center; margin-top:10px;"></p>
+            <div class="analytics-card">
+                <p>Review the status and results of past video processing jobs. Completed jobs offer links to view the generated heatmap image and download the processed video.</p>
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Video</th>
+                            <th>Floorplan</th>
+                            <th>People</th>
+                            <th>Status</th>
+                            <th class="history-message-col-header">Message</th>
+                            <th>Event Time</th>
+                            <th class="history-actions-col-header">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody"></tbody>
+                </table>
+                <p id="historyMessage" style="margin-top: 15px; text-align: center;"></p>
+            </div>
         </section>
     </div>
-
-    <script>
-        // Minor style adjustment for table rows in history
-        function styleHistoryTableRows() {
-            const rows = document.querySelectorAll('#historyTableBody tr');
-            rows.forEach((row, index) => {
-                row.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f9f9f9'; // Alternating white and light gray
-                row.querySelectorAll('td').forEach(td => td.style.padding = '10px 8px'); // Consistent padding
-            });
-        }
-    </script>
     <script>
         const backendUrl = 'http://127.0.0.1:5000';
 
@@ -489,7 +840,7 @@
             if (isDrawingZoneMode) {
                 pointMakerCanvas.style.borderColor = 'blue'; 
             } else {
-                pointMakerCanvas.style.borderColor = 'black';
+                pointMakerCanvas.style.borderColor = 'var(--border-color)';
             }
             
             if ((stepId === 'configStep2Points' || stepId === 'configStep3Zones') && selectedFloorplanImage) {
@@ -536,7 +887,7 @@
                 loadedFloorplanNameSpan.textContent = 'None';
                 loadedPointsStatusSpan.textContent = "Not Set.";
                 loadedZonesStatusSpan.textContent = "Not Set.";
-            }
+            } // Ensure this closing brace is here
         }
 
 
@@ -697,12 +1048,13 @@
                 ctx.lineTo(points[i].displayX, points[i].displayY);
             }
             if (points.length > 2) { 
+                // ctx.closePath(); // Only close if you want a filled polygon, or if it's the final stroke
             }
-            if (fillColor && points.length > 2) { 
+            if (fillColor && points.length > 2) { // Fill only if it's a proper polygon
                 ctx.fillStyle = fillColor;
                 ctx.fill();
             }
-            ctx.strokeStyle = fillColor.replace('0.3', '0.8').replace('0.2', '0.7'); 
+            ctx.strokeStyle = fillColor.replace('0.3', '0.8').replace('0.2', '0.7'); // Make stroke darker/more opaque
             ctx.lineWidth = 2;
             ctx.stroke();
         }
@@ -906,38 +1258,59 @@
         async function fetchJobHistory() {
             const tableBody = document.getElementById('historyTableBody');
             const historyMessage = document.getElementById('historyMessage');
-            tableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:10px;">Loading history...</td></tr>';
+            tableBody.innerHTML = '<tr class="history-table-message-row"><td colspan="8">Loading history...</td></tr>';
             historyMessage.textContent = '';
 
             try {
                 const response = await fetch(`${backendUrl}/api/heatmap_jobs/history`);
                 if (response.status === 401) { window.location.href = '/login'; return; }
-                if (!response.ok) { historyMessage.textContent = 'Error fetching history.'; tableBody.innerHTML = ''; return; }
+                if (!response.ok) { 
+                    const errorData = await response.json().catch(() => ({ detail: "Failed to fetch history, server response not JSON." }));
+                    historyMessage.textContent = `Error fetching history: ${errorData.detail || response.statusText}`; 
+                    tableBody.innerHTML = '<tr class="history-table-message-row"><td colspan="8">Error loading history.</td></tr>'; 
+                    return; 
+                }
                 
                 const jobs = await response.json();
                 tableBody.innerHTML = '';
                 if (jobs.length === 0) {
-                    historyMessage.textContent = 'No processing history found.';
+                    tableBody.innerHTML = '<tr class="history-table-message-row"><td colspan="8">No history found.</td></tr>';
                 } else {
                     jobs.forEach(job => {
                         const row = tableBody.insertRow();
-                        row.insertCell().textContent = job.job_id.substring(0, 8) + "...";
-                        row.insertCell().textContent = job.input_video_name || 'N/A';
-                        row.insertCell().textContent = job.input_floorplan_name || 'N/A';
-                        row.insertCell().textContent = job.people_counted !== null ? job.people_counted : 'N/A';
-                        row.insertCell().textContent = job.status;
-                        row.insertCell().textContent = job.message || 'N/A';
-                        row.insertCell().textContent = job.video_event_timestamp ? new Date(job.video_event_timestamp).toLocaleString() : (job.created_at ? new Date(job.created_at).toLocaleString() : 'N/A');
+                        
+                        row.insertCell().textContent = job.job_id.substring(0, 8) + "..."; // Job ID
+
+                        const videoCell = row.insertCell(); // Video
+                        videoCell.textContent = job.input_video_name || 'N/A';
+                        videoCell.className = 'history-filename-col';
+                        videoCell.title = job.input_video_name || 'N/A'; // Full name on hover
+
+                        const floorplanCell = row.insertCell(); // Floorplan
+                        floorplanCell.textContent = job.input_floorplan_name || 'N/A';
+                        floorplanCell.className = 'history-floorplan-col'; 
+                        floorplanCell.title = job.input_floorplan_name || 'N/A'; 
+
+                        row.insertCell().textContent = job.people_counted !== null ? job.people_counted : 'N/A'; // People
+                        row.insertCell().textContent = job.status; // Status
+                        
+                        const messageCell = row.insertCell(); // Message
+                        messageCell.textContent = job.message || 'N/A';
+                        messageCell.className = 'history-message-col';
+                        
+                        row.insertCell().textContent = job.video_event_timestamp ? new Date(job.video_event_timestamp).toLocaleString() : (job.created_at ? new Date(job.created_at).toLocaleString() : 'N/A'); // Event Time
+                        
                         const actionsCell = row.insertCell();
+                        actionsCell.className = 'history-actions-col';
                         if (job.status === 'completed') {
                             actionsCell.innerHTML = `<a href="${backendUrl}/api/heatmap_jobs/${job.job_id}/result/image" target="_blank">View Image</a> | <a href="${backendUrl}/api/heatmap_jobs/${job.job_id}/result/video">Download Video</a>`;
                         }
                     });
-                    styleHistoryTableRows(); // Apply styling after rows are added
                 }
             } catch (error) {
                 console.error("Error fetching history:", error);
-                historyMessage.textContent = 'Failed to load history.'; tableBody.innerHTML = '';
+                historyMessage.textContent = 'Failed to load history.'; 
+                tableBody.innerHTML = '<tr class="history-table-message-row"><td colspan="8">Error loading history.</td></tr>';
             }
         }
 
@@ -1147,12 +1520,21 @@
                 const data = await response.json();
                 console.log("Dashboard Overview Data Received:", JSON.stringify(data, null, 2)); 
 
+                // Get current theme colors for the chart
+                const style = getComputedStyle(document.body); // Get styles from body, where .dark-mode is applied
+                const chartTextColor = style.getPropertyValue('--text-primary').trim(); // Use primary text for better contrast
+                const chartGridColor = style.getPropertyValue('--border-light').trim();
+                const chartAxisColor = style.getPropertyValue('--border-color').trim();
+                const chartBarBackgroundColor = style.getPropertyValue('--primary-color').trim();
+                const chartBarBorderColor = style.getPropertyValue('--primary-hover-color').trim();
+
+
                 totalVisitorsCountElem.textContent = data.total_visitors_today !== null ? data.total_visitors_today : 'N/A';
                 
                 let chartLabels, chartDataPoints, chartXAxisLabel, chartYAxisLabel, chartTitleText;
 
                 if (data.chart_period_type === 'daily_hourly' && data.chart_data.hourly_visitor_data) {
-                    mainChartTitleElem.textContent = "Today's Hourly Traffic";
+                    mainChartTitleElem.textContent = "Hourly Traffic (Today)";
                     peakHoursInfoElem.textContent = (data.peak_hour_today && !data.peak_hour_today.startsWith("N/A")) ? 
                         `Peak activity: ${data.peak_hour_today} (with ${data.peak_hour_visitor_count} visitors)` : 
                         'No peak hour data for today. Process videos.';
@@ -1164,7 +1546,7 @@
                     chartTitleText = 'Hourly Visitors Today';
 
                 } else if (data.chart_period_type === 'yearly_monthly' && data.chart_data.yearly_visitor_summary) {
-                    mainChartTitleElem.textContent = "Monthly Visitor Trends (Current Year)";
+                    mainChartTitleElem.textContent = "Monthly Trends (Current Year)";
                     peakHoursInfoElem.textContent = 'Displaying total visitors per month for the current year.';
 
                     chartLabels = data.chart_data.yearly_visitor_summary.map(item => item.month_name);
@@ -1187,8 +1569,8 @@
                             datasets: [{ 
                                 label: chartTitleText, 
                                 data: chartDataPoints, 
-                                backgroundColor: 'rgba(0, 123, 255, 0.6)', 
-                                borderColor: 'rgba(0, 123, 255, 1)', 
+                                backgroundColor: chartBarBackgroundColor, 
+                                borderColor: chartBarBorderColor, 
                                 borderWidth: 1 
                             }] 
                         },
@@ -1196,10 +1578,52 @@
                             responsive: true, 
                             maintainAspectRatio: false, 
                             scales: { 
-                                y: { beginAtZero: true, title: { display: true, text: chartYAxisLabel }, ticks: { stepSize: 1 } }, 
-                                x: { title: { display: true, text: chartXAxisLabel } } 
+                                y: { 
+                                    beginAtZero: true, 
+                                    title: { 
+                                        display: true, 
+                                        text: chartYAxisLabel,
+                                        color: chartTextColor 
+                                    }, 
+                                    ticks: { 
+                                        stepSize: 1,
+                                        color: chartTextColor
+                                    },
+                                    grid: {
+                                        color: chartGridColor,
+                                        borderColor: chartAxisColor // For the axis line itself
+                                    },
+                                    border: { // Explicitly color the axis line
+                                        color: chartAxisColor
+                                    }
+                                }, 
+                                x: { 
+                                    title: { 
+                                        display: true, 
+                                        text: chartXAxisLabel,
+                                        color: chartTextColor
+                                    },
+                                    ticks: {
+                                        color: chartTextColor
+                                    },
+                                    grid: {
+                                        color: chartGridColor,
+                                        borderColor: chartAxisColor // For the axis line itself
+                                    },
+                                    border: { // Explicitly color the axis line
+                                        color: chartAxisColor
+                                    }
+                                } 
                             }, 
-                            plugins: { legend: { display: true, labels: {boxWidth: 20} } } 
+                            plugins: { 
+                                legend: { 
+                                    display: true, 
+                                    labels: {
+                                        boxWidth: 20,
+                                        color: chartTextColor
+                                    } 
+                                } 
+                            } 
                         }
                     });
                 } else if (!document.getElementById('peakHoursChartContainer').innerHTML.includes('small')) { 
@@ -1231,6 +1655,53 @@
         chartPeriodRadios.forEach(radio => {
             radio.addEventListener('change', updateDashboardOverview);
         });
+        
+        // Responsive adjustments for dashboard layout (add to existing resize listener or make new one)
+        function adjustDashboardLayout() {
+            const grid = document.querySelector('.dashboard-layout-grid');
+            if (!grid) return;
+
+            if (window.innerWidth <= 992) { // Example breakpoint
+                grid.style.flexDirection = 'column';
+            } else {
+                grid.style.flexDirection = 'row';
+            }
+        }
+        window.addEventListener('resize', adjustDashboardLayout);
+
+        // Dark Mode Toggle Logic
+        const themeToggleCheckbox = document.getElementById('themeToggleCheckbox');
+        const themeLabel = document.getElementById('themeLabel');
+        const currentBody = document.body; // Renamed to avoid conflict if 'body' var is used elsewhere
+
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                currentBody.classList.add('dark-mode');
+                if(themeToggleCheckbox) themeToggleCheckbox.checked = true;
+                if(themeLabel) themeLabel.textContent = 'Dark Mode';
+            } else {
+                currentBody.classList.remove('dark-mode');
+                if(themeToggleCheckbox) themeToggleCheckbox.checked = false;
+                if(themeLabel) themeLabel.textContent = 'Light Mode';
+            }
+            // If dashboard overview is active and chart exists, refresh it
+            if (document.getElementById('pageDashboardOverview').classList.contains('active')) {
+                // updateDashboardOverview will destroy and recreate the chart with new colors
+                // No need to check for peakHoursChartInstance specifically, updateDashboardOverview handles it
+                updateDashboardOverview();
+            }
+        }
+
+        const savedTheme = localStorage.getItem('theme') || 'light'; // Default to light
+        applyTheme(savedTheme);
+
+        if(themeToggleCheckbox) {
+            themeToggleCheckbox.addEventListener('change', () => {
+                const newTheme = themeToggleCheckbox.checked ? 'dark' : 'light';
+                applyTheme(newTheme);
+                localStorage.setItem('theme', newTheme);
+            });
+        }
 
         // --- Initial Setup ---
         if (pointMakerCanvas) ctx = pointMakerCanvas.getContext('2d');
