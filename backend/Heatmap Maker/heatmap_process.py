@@ -12,6 +12,7 @@ import datetime
 # Imports needed for generate_heatmap_and_video
 import cv2
 import numpy as np
+from ultralytics import YOLO # Import YOLO directly for tracking
 from ultralytics import solutions
 
 def generate_heatmap_and_video(
@@ -50,6 +51,10 @@ def generate_heatmap_and_video(
     if progress_callback:
         progress_callback("Loading video...")
     cap = cv2.VideoCapture(input_video_path)
+    # Initialize a separate YOLO model for tracking people
+    # This ensures we can get tracking IDs independently of the heatmap solution's internal model usage
+    # We use the same model name for consistency.
+    tracking_model = YOLO(yolo_model_name)
     if not cap.isOpened():
         if progress_callback:
             progress_callback(f"Error reading video file from {input_video_path}")
@@ -106,6 +111,7 @@ def generate_heatmap_and_video(
     floorplan_heatmap_acc = np.zeros_like(floorplan[:, :, 0], dtype=np.float32)
     frame_count = 0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) # Get total frames if available
+    unique_person_ids = set() # To store unique tracked person IDs
     report_interval = max(1, total_frames // 20) if total_frames > 0 else 50 # Report progress roughly every 5% or 50 frames
 
     try:
@@ -121,6 +127,15 @@ def generate_heatmap_and_video(
                     percent_complete = int((frame_count / float(total_frames)) * 100)
                     progress_message += f" of approx {total_frames} ({percent_complete}%)"
                 progress_callback(progress_message)
+
+            # Perform object tracking for counting people (class 0)
+            # persist=True tells the tracker that this is a continuous video
+            tracks = tracking_model.track(im0, persist=True, verbose=False, classes=[0]) # classes=[0] for person
+            if tracks and tracks[0].boxes.id is not None:
+                person_ids_in_frame = tracks[0].boxes.id.cpu().numpy().astype(int)
+                for person_id in person_ids_in_frame:
+                    unique_person_ids.add(person_id)
+
             results = heatmap_obj(im0) # Process with Ultralytics Heatmap
             if results.plot_im is not None: # results.plot_im is the frame with heatmap/detections
                 video_writer.write(results.plot_im)
@@ -151,6 +166,7 @@ def generate_heatmap_and_video(
         "message": f"Processed {frame_count} frames.",
         "output_heatmap_image": output_heatmap_image_path,
         "output_processed_video": output_processed_video_path,
+        "people_counted": len(unique_person_ids) # Add the count here
     }
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -175,6 +191,7 @@ def init_db():
             input_floorplan_name TEXT,
             output_heatmap_path TEXT,
             output_video_path TEXT,
+            people_counted INTEGER DEFAULT 0,
             status TEXT NOT NULL,
             message TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -266,9 +283,10 @@ def process_heatmap_task(job_id, input_video_path, input_floorplan_path, input_p
         jobs[job_id]['status'] = 'completed'
         jobs[job_id]['result'] = result
         db_message_final = result.get('message', 'Processing completed successfully.')
+        people_counted = result.get('people_counted', 0)
         jobs[job_id]['message'] = db_message_final
-        conn_thread.execute("UPDATE jobs SET status = ?, message = ?, output_heatmap_path = ?, output_video_path = ?, updated_at = ? WHERE job_id = ?",
-                     ('completed', db_message_final, result['output_heatmap_image'], result['output_processed_video'], datetime.datetime.now(), job_id))
+        conn_thread.execute("UPDATE jobs SET status = ?, message = ?, output_heatmap_path = ?, output_video_path = ?, people_counted = ?, updated_at = ? WHERE job_id = ?",
+                     ('completed', db_message_final, result['output_heatmap_image'], result['output_processed_video'], people_counted, datetime.datetime.now(), job_id))
         conn_thread.commit()
         print(f"Job {job_id}: Completed successfully.")
     except Exception as e:
@@ -371,9 +389,9 @@ def create_heatmap_job():
     conn = get_db_connection()
     try:
         conn.execute('''
-            INSERT INTO jobs (job_id, user, input_video_name, input_floorplan_name, status, message, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (job_id, session['logged_in_user'], video_filename, floorplan_filename, 'pending', 'Job submitted for processing.', datetime.datetime.now(), datetime.datetime.now()))
+            INSERT INTO jobs (job_id, user, input_video_name, input_floorplan_name, status, message, people_counted, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (job_id, session['logged_in_user'], video_filename, floorplan_filename, 'pending', 'Job submitted for processing.', 0, datetime.datetime.now(), datetime.datetime.now()))
         conn.commit()
     except sqlite3.Error as e:
         print(f"Database error on job insert: {e}")
@@ -474,7 +492,7 @@ def get_processed_video(job_id):
 def get_job_history():
     conn = get_db_connection()
     history_jobs_cursor = conn.execute('''
-        SELECT job_id, input_video_name, input_floorplan_name, status, message, created_at, updated_at
+       SELECT job_id, input_video_name, input_floorplan_name, status, message, people_counted, created_at, updated_at
         FROM jobs WHERE user = ? ORDER BY created_at DESC
     ''', (session['logged_in_user'],))
     history_jobs = [dict(row) for row in history_jobs_cursor.fetchall()]
