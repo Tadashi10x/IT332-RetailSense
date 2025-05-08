@@ -83,6 +83,15 @@ export const authService = {
       throw error.response ? error.response.data : error;
     }
   },
+
+  updateUsername: async (newUsername) => {
+    try {
+      const response = await apiClient.put("/user/username", { username: newUsername });
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  },
 };
 
 // Heatmap job services

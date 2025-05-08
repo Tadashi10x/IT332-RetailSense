@@ -2,18 +2,19 @@
     max-width: 800px;
     margin: 0 auto;
     padding: 24px;
+    color: #292a2d;
   }
   
   .page-title {
     font-size: 1.875rem;
     font-weight: 700;
-    color: #ffffff;
+    color: whitesmoke !important;
     margin-bottom: 24px;
   }
   
   .profile-card,
   .password-card {
-    background-color: white;
+    background-color: #292a2d;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     padding: 24px;
@@ -46,13 +47,14 @@
   .profile-name {
     font-size: 1.5rem;
     font-weight: 600;
-    color: #292a2d;
+    color: whitesmoke !important;
   }
   
   .profile-info {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    color: #e3f2fd;
   }
   
   .info-item {
@@ -64,7 +66,7 @@
   .info-icon {
     width: 20px;
     height: 20px;
-    color: #292a2d;
+    color: #e3f2fd;
     margin-top: 2px;
   }
   
@@ -81,13 +83,13 @@
   
   .info-value {
     font-size: 1rem;
-    color: #292a2d;
+    color: var(--text-light);
   }
   
   .section-title {
     font-size: 1.25rem;
     font-weight: 600;
-    color: var(--text-color);
+    color: whitesmoke !important;
     margin-bottom: 20px;
   }
   
@@ -106,7 +108,7 @@
   .form-label {
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--text-color);
+    color: whitesmoke !important;
   }
   
   .form-input {
@@ -187,7 +189,7 @@
   }
 
   .activity-card {
-    background-color: white;
+    background-color: #292a2d;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     padding: 24px;
@@ -353,4 +355,113 @@
       align-items: flex-start;
       gap: 4px;
     }
+  }
+
+  .username-section {
+    flex: 1;
+  }
+  
+  .username-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .edit-username-btn {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  
+  .edit-username-btn:hover {
+    color: var(--primary-color);
+    background-color: var(--hover-color);
+  }
+  
+  .username-edit-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .username-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    transition: border-color 0.2s;
+  }
+  
+  .username-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+  }
+  
+  .username-edit-actions {
+    display: flex;
+    gap: 4px;
+  }
+  
+  .edit-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  
+  .edit-btn.save {
+    background-color: #4caf50;
+    color: white;
+  }
+  
+  .edit-btn.save:hover {
+    background-color: #43a047;
+  }
+  
+  .edit-btn.cancel {
+    background-color: #f44336;
+    color: white;
+  }
+  
+  .edit-btn.cancel:hover {
+    background-color: #e53935;
+  }
+  /* Make the selector more specific for UserManagement username */
+  .user-management-container .profile-card .profile-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: whitesmoke !important;
+  }
+
+  /* Make the selector more specific for Activity Summary */
+  .user-management-container .activity-card .section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: whitesmoke !important;
+  }
+
+  /* Make the selector more specific for password form labels */
+  .user-management-container .password-card .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: whitesmoke !important;
+  }
+
+  /* Make the selector more specific for User Profile title */
+  .user-management-container .page-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: whitesmoke !important;
   }

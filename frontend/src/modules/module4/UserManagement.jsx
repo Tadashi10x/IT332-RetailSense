@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Mail, Calendar, Key, Eye, EyeOff, Video, Map, Clock, BarChart2 } from "lucide-react";
+import { User, Mail, Calendar, Key, Eye, EyeOff, Video, Map, Clock, BarChart2, Edit2, Check, X } from "lucide-react";
 import { authService, heatmapService } from "../../services/api";
 import toast from "react-hot-toast";
 import "../../styles/UserManagement.css";
@@ -25,6 +25,8 @@ const UserManagement = () => {
     lastActivity: null,
     recentActivities: []
   });
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
 
   useEffect(() => {
     fetchUserInfo();
@@ -110,6 +112,43 @@ const UserManagement = () => {
     }
   };
 
+  const handleUsernameEdit = () => {
+    setNewUsername(userInfo.username);
+    setIsEditingUsername(true);
+  };
+
+  const handleUsernameCancel = () => {
+    setIsEditingUsername(false);
+    setNewUsername("");
+  };
+
+  const handleUsernameUpdate = async (e) => {
+    e.preventDefault();
+    
+    if (!newUsername.trim()) {
+      toast.error("Username cannot be empty");
+      return;
+    }
+
+    if (newUsername === userInfo.username) {
+      setIsEditingUsername(false);
+      return;
+    }
+
+    try {
+      const response = await authService.updateUsername(newUsername);
+      if (response.message) {
+        setUserInfo(prev => ({ ...prev, username: newUsername }));
+        setIsEditingUsername(false);
+        toast.success("Username updated successfully");
+      } else {
+        throw new Error("Failed to update username");
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to update username");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="user-management-container">
@@ -127,7 +166,35 @@ const UserManagement = () => {
           <div className="profile-avatar">
             <User className="avatar-icon" />
           </div>
-          <h2 className="profile-name">{userInfo.username}</h2>
+          <div className="username-section">
+            {isEditingUsername ? (
+              <form onSubmit={handleUsernameUpdate} className="username-edit-form">
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  className="username-input"
+                  placeholder="Enter new username"
+                  autoFocus
+                />
+                <div className="username-edit-actions">
+                  <button type="submit" className="edit-btn save">
+                    <Check size={16} />
+                  </button>
+                  <button type="button" className="edit-btn cancel" onClick={handleUsernameCancel}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="username-display">
+                <h2 className="profile-name">{userInfo.username}</h2>
+                <button onClick={handleUsernameEdit} className="edit-username-btn">
+                  <Edit2 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="profile-info">

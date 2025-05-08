@@ -186,6 +186,7 @@
 .profile-name {
   font-weight: bold;
   margin-bottom: 0.5rem;
+  color: #292a2d !important;
 }
 
 .profile-icon {
@@ -233,5 +234,12 @@
 .logout-btn:hover,
 .theme-toggle-btn:hover {
   background-color: #f0f0f0;
+}
+
+/* Navbar dropdown username */
+.profile-dropdown-card .profile-name {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #292a2d !important;
 }
 
