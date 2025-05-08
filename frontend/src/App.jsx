@@ -14,8 +14,10 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VideoProcessing from "./modules/module1/VideoProcessing";
 import HeatmapGeneration from "./modules/module2/HeatmapGeneration";
+import UserManagement from "./modules/module4/UserManagement";
 import apiClient, { authService } from "./services/api";
 import "./App.css";
+import { ThemeProvider } from "./components/ThemeContext";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -41,55 +43,63 @@ function App() {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <Router>
-      <div className="app">
-        <Toaster position="top-right" />
-        <Navbar
-          isAuthenticated={isAuthenticated}
-          setIsAuthenticated={setIsAuthenticated}
-        />
-        <div className="content">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" />
-                ) : (
-                  <Login setIsAuthenticated={setIsAuthenticated} />
-                )
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" />
-                ) : (
-                  <Register />
-                )
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={isAuthenticated ? <Dashboard /> : <Navigate to="/" />}
-            />
-            <Route
-              path="/video-processing"
-              element={
-                isAuthenticated ? <VideoProcessing /> : <Navigate to="/" />
-              }
-            />
-            <Route
-              path="/heatmap-generation"
-              element={
-                isAuthenticated ? <HeatmapGeneration /> : <Navigate to="/" />
-              }
-            />
-          </Routes>
+    <ThemeProvider>
+      <Router>
+        <div className="app">
+          <Toaster position="top-right" />
+          <Navbar
+            isAuthenticated={isAuthenticated}
+            setIsAuthenticated={setIsAuthenticated}
+          />
+          <div className="content">
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  isAuthenticated ? (
+                    <Navigate to="/dashboard" />
+                  ) : (
+                    <Login setIsAuthenticated={setIsAuthenticated} />
+                  )
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  isAuthenticated ? (
+                    <Navigate to="/dashboard" />
+                  ) : (
+                    <Register />
+                  )
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={isAuthenticated ? <Dashboard /> : <Navigate to="/" />}
+              />
+              <Route
+                path="/video-processing"
+                element={
+                  isAuthenticated ? <VideoProcessing /> : <Navigate to="/" />
+                }
+              />
+              <Route
+                path="/heatmap-generation"
+                element={
+                  isAuthenticated ? <HeatmapGeneration /> : <Navigate to="/" />
+                }
+              />
+              <Route
+                path="/user-management"
+                element={
+                  isAuthenticated ? <UserManagement /> : <Navigate to="/" />
+                }
+              />
+            </Routes>
+          </div>
         </div>
-      </div>
-    </Router>
+      </Router>
+    </ThemeProvider>
   );
 }
 

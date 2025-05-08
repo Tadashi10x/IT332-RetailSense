@@ -446,6 +446,41 @@ def receive_live_detections(job_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@app.route('/api/user/username', methods=['PUT'])
+@jwt_required()
+def update_username():
+    username = get_jwt_identity()
+    if not username:
+        return jsonify({"error": "Not logged in"}), 401
+    
+    data = request.get_json()
+    new_username = data.get('username')
+    
+    if not new_username:
+        return jsonify({"error": "New username is required"}), 400
+    
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        # Check if new username already exists
+        cursor.execute("SELECT username FROM users WHERE username = ?", (new_username,))
+        if cursor.fetchone():
+            return jsonify({"error": "Username already exists"}), 400
+        
+        # Update username
+        cursor.execute("UPDATE users SET username = ? WHERE username = ?", 
+                      (new_username, username))
+        conn.commit()
+        
+        return jsonify({
+            "message": "Username updated successfully",
+            "username": new_username
+        })
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True) 

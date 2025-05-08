@@ -1,14 +1,45 @@
 "use client";
 
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Menu, X, BarChart2, Video, Map, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
+import { 
+  Menu, 
+  X, 
+  BarChart2, 
+  Video, 
+  Map, 
+  LogOut, 
+  User, 
+  Settings,
+  Sun,
+  Moon
+} from "lucide-react";
 import toast from "react-hot-toast";
+import { authService } from "../services/api";
+import { useTheme } from "./ThemeContext";
 import "../styles/Navbar.css";
 
 const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [userInfo, setUserInfo] = useState(null);
+  const { isDarkMode, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      if (isAuthenticated) {
+        try {
+          const response = await authService.getUserInfo();
+          setUserInfo(response);
+        } catch (error) {
+          console.error("Failed to fetch user info:", error);
+        }
+      }
+    };
+
+    fetchUserInfo();
+  }, [isAuthenticated]);
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -42,9 +73,33 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
         </div>
         <div className="navbar-actions">
           {isAuthenticated && (
-            <button onClick={handleLogout} className="logout-btn">
-              <LogOut className="nav-icon" /> Logout
-            </button>
+            <div className="profile-dropdown-wrapper">
+              <button
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                className="profile-icon-btn"
+              > 
+                <User className="nav-icon" />
+              </button>
+              {showProfileDropdown && (
+                <div className="profile-dropdown-card">
+                  <p className="profile-name">{userInfo?.username || 'Loading...'}</p>
+                  <Link to="/user-management" className="profile-link">
+                    <Settings className="profile-icon" /> My Profile
+                  </Link>
+                  <button onClick={toggleTheme} className="theme-toggle-btn">
+                    {isDarkMode ? (
+                      <Sun className="profile-icon" />
+                    ) : (
+                      <Moon className="profile-icon" />
+                    )}
+                    {isDarkMode ? 'Light Mode' : 'Dark Mode'}
+                  </button>
+                  <button onClick={handleLogout} className="logout-btn">
+                    <LogOut className="profile-icon" /> Logout
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="navbar-mobile-toggle">
