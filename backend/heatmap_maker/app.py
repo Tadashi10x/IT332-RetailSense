@@ -17,6 +17,7 @@ from heatmap_maker import blend_heatmap
 from utils import hash_password, verify_password
 import datetime
 import cv2
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = b'supersecretkey'  # Replace with a secure key in production
+app.config['JWT_SECRET_KEY'] = 'superjwtsecretkey'  # Change this in production
+jwt = JWTManager(app)
 
 # Configure CORS properly
 CORS(app, resources={
@@ -120,6 +123,7 @@ def update_job_progress(job_id, stage, progress):
     conn.close()
 
 @app.route('/api/heatmap_jobs', methods=['POST'])
+@jwt_required()
 def create_heatmap_job():
     try:
         logger.debug("Received job creation request")
@@ -188,8 +192,8 @@ def create_heatmap_job():
             }
         }
 
-        # Get current user if logged in
-        current_user = session.get('logged_in_user')
+        # Get current user from JWT
+        current_user = get_jwt_identity()
         logger.debug(f"Current user: {current_user}")
 
         # Create database entry
@@ -264,6 +268,7 @@ def get_processed_video(job_id):
     return send_from_directory(os.path.dirname(output_video_path), os.path.basename(output_video_path), as_attachment=True)
 
 @app.route('/api/heatmap_jobs/history', methods=['GET'])
+@jwt_required()
 def get_job_history():
     conn = get_db_connection()
     history_jobs_cursor = conn.execute('''
@@ -313,8 +318,8 @@ def login_api():
         cursor.execute("SELECT password_hash FROM users WHERE username = ?", (username,))
         user = cursor.fetchone()
         if user and verify_password(user['password_hash'], password):
-            session['logged_in_user'] = username
-            return jsonify({"success": True, "message": "Login successful"})
+            access_token = create_access_token(identity=username)
+            return jsonify({"success": True, "message": "Login successful", "access_token": access_token})
         return jsonify({"error": "Invalid credentials"}), 401
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
@@ -323,12 +328,13 @@ def login_api():
 
 @app.route('/api/logout', methods=['POST'])
 def logout_api():
-    session.pop('logged_in_user', None)
+    # With JWT, logout is handled client-side by deleting the token
     return jsonify({"success": True, "message": "Logged out successfully"})
 
 @app.route('/api/user', methods=['GET'])
+@jwt_required()
 def get_user_info():
-    username = session.get('logged_in_user')
+    username = get_jwt_identity()
     if not username:
         return jsonify({"error": "Not logged in"}), 401
     conn = get_db_connection()

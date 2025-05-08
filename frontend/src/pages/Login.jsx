@@ -32,8 +32,11 @@ const Login = ({ setIsAuthenticated }) => {
     }
 
     try {
+      // Remove any old token
+      localStorage.removeItem('access_token');
       const response = await authService.login(formData.username, formData.password);
-      if (response.success) {
+      if (response.success && response.access_token) {
+        localStorage.setItem('access_token', response.access_token);
         setIsAuthenticated(true);
         toast.success("Login successful");
         navigate("/dashboard");

@@ -21,11 +21,7 @@ def init_db():
     logger.debug("Initializing database")
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Drop existing tables to ensure clean schema
-    cursor.execute('DROP TABLE IF EXISTS jobs')
-    cursor.execute('DROP TABLE IF EXISTS users')
-    
+    # Only create tables if they do not exist; do NOT drop tables
     # Create users table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -36,7 +32,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
     # Create jobs table with nullable user field
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS jobs (
@@ -53,7 +48,6 @@ def init_db():
             FOREIGN KEY (user) REFERENCES users(username)
         )
     ''')
-    
     conn.commit()
     conn.close()
     logger.debug("Database initialization complete")

@@ -11,6 +11,7 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    localStorage.removeItem('access_token');
     setIsAuthenticated(false);
     toast.success("Logged out successfully");
     navigate("/");

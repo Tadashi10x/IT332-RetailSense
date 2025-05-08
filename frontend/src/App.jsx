@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -14,10 +14,31 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VideoProcessing from "./modules/module1/VideoProcessing";
 import HeatmapGeneration from "./modules/module2/HeatmapGeneration";
+import apiClient, { authService } from "./services/api";
 import "./App.css";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkToken = async () => {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        try {
+          await authService.getUserInfo();
+          setIsAuthenticated(true);
+        } catch (err) {
+          localStorage.removeItem("access_token");
+          setIsAuthenticated(false);
+        }
+      }
+      setLoading(false);
+    };
+    checkToken();
+  }, []);
+
+  if (loading) return <div>Loading...</div>;
 
   return (
     <Router>

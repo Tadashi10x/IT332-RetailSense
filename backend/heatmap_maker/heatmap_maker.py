@@ -42,19 +42,22 @@ def blend_heatmap(detections, floorplan_path, output_heatmap_path, output_video_
             progress = (i + 1) / total_detections
             progress_callback(progress)
     
-    # Normalize heatmap
-    heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
-    
+    # Apply gamma correction to brighten low values
+    heatmap = np.power(heatmap, 0.6)
+    heatmap_norm = cv2.normalize(heatmap, None, 0, 1, cv2.NORM_MINMAX)  # For alpha mask
+    heatmap_img = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
+
     # Apply Gaussian blur
-    heatmap = gaussian_filter(heatmap, sigma=10)
-    
-    # Convert to color heatmap
-    heatmap_colored = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
-    
-    # Blend with floorplan
-    alpha = 0.7
-    beta = 0.3
-    blended = cv2.addWeighted(floorplan, alpha, heatmap_colored, beta, 0)
+    heatmap_img = gaussian_filter(heatmap_img, sigma=10)
+
+    # Convert to color heatmap (blue-green-yellow-red)
+    heatmap_colored = cv2.applyColorMap(heatmap_img.astype(np.uint8), cv2.COLORMAP_TURBO)
+
+    # Per-pixel alpha blending: alpha is higher for high-traffic, lower for low-traffic
+    alpha_mask = heatmap_norm[..., None]  # Shape (H, W, 1)
+    # Optionally, scale alpha to max 0.7 for even more transparency
+    alpha_mask = alpha_mask * 0.7
+    blended = (floorplan * (1 - alpha_mask) + heatmap_colored * alpha_mask).astype(np.uint8)
     
     # Save heatmap image
     cv2.imwrite(output_heatmap_path, blended)
