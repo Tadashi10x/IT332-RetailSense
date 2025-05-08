@@ -1,9 +1,17 @@
+"use client";
+
 import { useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
+import Register from "./pages/Register";
 import VideoProcessing from "./modules/module1/VideoProcessing";
 import HeatmapGeneration from "./modules/module2/HeatmapGeneration";
 import "./App.css";
@@ -23,36 +31,38 @@ function App() {
           <Routes>
             <Route
               path="/"
-              element={<Login setIsAuthenticated={setIsAuthenticated} />}
-            />
-            <Route
-              path="/dashboard"
               element={
                 isAuthenticated ? (
-                  <Dashboard />
+                  <Navigate to="/dashboard" />
                 ) : (
                   <Login setIsAuthenticated={setIsAuthenticated} />
                 )
               }
             />
             <Route
-              path="/video-processing"
+              path="/register"
               element={
                 isAuthenticated ? (
-                  <VideoProcessing />
+                  <Navigate to="/dashboard" />
                 ) : (
-                  <Login setIsAuthenticated={setIsAuthenticated} />
+                  <Register />
                 )
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={isAuthenticated ? <Dashboard /> : <Navigate to="/" />}
+            />
+            <Route
+              path="/video-processing"
+              element={
+                isAuthenticated ? <VideoProcessing /> : <Navigate to="/" />
               }
             />
             <Route
               path="/heatmap-generation"
               element={
-                isAuthenticated ? (
-                  <HeatmapGeneration />
-                ) : (
-                  <Login setIsAuthenticated={setIsAuthenticated} />
-                )
+                isAuthenticated ? <HeatmapGeneration /> : <Navigate to="/" />
               }
             />
           </Routes>

@@ -1,21 +1,113 @@
+"use client";
+
 import { useState, useEffect, useRef } from "react";
 import { Calendar, Clock, Download, Filter, Map, Loader } from "lucide-react";
 import toast from "react-hot-toast";
-import "./HeatmapGeneration.css";
+import { useLocation } from "react-router-dom";
+import { heatmapService } from "../../services/api";
+import "../../styles/HeatmapGeneration.css";
 
 const HeatmapGeneration = () => {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialJobId = queryParams.get("jobId");
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [heatmapGenerated, setHeatmapGenerated] = useState(false);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [timeRange, setTimeRange] = useState({ start: "09:00", end: "21:00" });
   const [selectedArea, setSelectedArea] = useState("all");
-  const canvasRef = useRef(null);
+  const [jobId, setJobId] = useState(initialJobId);
+  const [jobHistory, setJobHistory] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const imageRef = useRef(null);
 
+  // Initialize date range to today and yesterday
   useEffect(() => {
-    if (heatmapGenerated) {
-      renderHeatmap();
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    setDateRange({
+      start: yesterday.toISOString().split("T")[0],
+      end: today.toISOString().split("T")[0],
+    });
+  }, []);
+
+  // Fetch job history on component mount
+  useEffect(() => {
+    const fetchJobHistory = async () => {
+      try {
+        const history = await heatmapService.getJobHistory();
+        setJobHistory(history.filter((job) => job.status === "completed"));
+
+        // If we have an initial jobId from URL params, select it
+        if (initialJobId) {
+          const job = history.find((j) => j.job_id === initialJobId);
+          if (job) {
+            setSelectedJob(job);
+            setHeatmapGenerated(true);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching job history:", error);
+        toast.error("Failed to load heatmap history");
+      }
+    };
+
+    fetchJobHistory();
+  }, [initialJobId]);
+
+  // Poll for job status if we have a jobId and are generating
+  useEffect(() => {
+    let intervalId;
+
+    if (jobId && isGenerating) {
+      intervalId = setInterval(async () => {
+        try {
+          const response = await heatmapService.getJobStatus(jobId);
+          setStatusMessage(response.message || "Generating heatmap...");
+
+          // Check if processing is complete
+          if (response.status === "completed") {
+            setIsGenerating(false);
+            setHeatmapGenerated(true);
+
+            // Fetch the job details to update selectedJob
+            const history = await heatmapService.getJobHistory();
+            const job = history.find((j) => j.job_id === jobId);
+            if (job) {
+              setSelectedJob(job);
+              setJobHistory(
+                history.filter((job) => job.status === "completed")
+              );
+            }
+
+            clearInterval(intervalId);
+            toast.success("Heatmap generated successfully");
+          } else if (response.status === "error") {
+            setIsGenerating(false);
+            clearInterval(intervalId);
+            toast.error(`Generation failed: ${response.message}`);
+          }
+        } catch (error) {
+          console.error("Error checking job status:", error);
+          // Don't stop polling on network errors, they might be temporary
+        }
+      }, 2000); // Poll every 2 seconds
     }
-  }, [heatmapGenerated]);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [jobId, isGenerating]);
+
+  const handleSelectJob = (job) => {
+    setSelectedJob(job);
+    setHeatmapGenerated(true);
+  };
 
   const handleGenerateHeatmap = async () => {
     if (!dateRange.start || !dateRange.end) {
@@ -23,91 +115,67 @@ const HeatmapGeneration = () => {
       return;
     }
 
+    // 1. Flip on your loading state
     setIsGenerating(true);
+    setStatusMessage("Sending request…");
 
-    // Simulate heatmap generation delay
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    setIsGenerating(false);
-    setHeatmapGenerated(true);
-    toast.success("Heatmap generated successfully");
-  };
-
-  const renderHeatmap = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    const width = canvas.width;
-    const height = canvas.height;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-
-    // Draw store layout (simplified)
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(50, 50, width - 100, height - 100);
-
-    // Draw entrance
-    ctx.fillStyle = "#333";
-    ctx.fillRect(width / 2 - 25, height - 50, 50, 10);
-
-    // Draw shelves
-    ctx.fillStyle = "#777";
-    // Left shelves
-    ctx.fillRect(100, 100, 50, 200);
-    ctx.fillRect(200, 100, 50, 200);
-    // Right shelves
-    ctx.fillRect(width - 150, 100, 50, 200);
-    ctx.fillRect(width - 250, 100, 50, 200);
-    // Center display
-    ctx.fillRect(width / 2 - 50, height / 2 - 50, 100, 100);
-
-    // Draw heatmap (simulated data)
-    const drawHeatPoint = (x, y, intensity) => {
-      const radius = 30;
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-      gradient.addColorStop(0, `rgba(255, 0, 0, ${intensity})`);
-      gradient.addColorStop(1, "rgba(255, 0, 0, 0)");
-
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
+    // 2. Build your payload from state
+    const payload = {
+      start_date: dateRange.start,
+      end_date: dateRange.end,
+      start_time: timeRange.start,
+      end_time: timeRange.end,
+      area: selectedArea,
     };
 
-    // Simulate foot traffic hotspots
-    // Entrance area
-    drawHeatPoint(width / 2, height - 60, 0.8);
-    drawHeatPoint(width / 2 - 20, height - 70, 0.7);
-    drawHeatPoint(width / 2 + 20, height - 70, 0.7);
+    try {
+      // 3. POST to /api/heatmap via Vite proxy
+      const res = await fetch("/api/heatmap_jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    // Main pathways
-    drawHeatPoint(width / 2, height - 120, 0.6);
-    drawHeatPoint(width / 2, height - 180, 0.5);
-    drawHeatPoint(width / 2, height - 240, 0.4);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Status ${res.status}: ${errText}`);
+      }
 
-    // Left side
-    drawHeatPoint(150, 200, 0.7);
-    drawHeatPoint(250, 200, 0.5);
+      const { job_id } = await res.json();
 
-    // Right side
-    drawHeatPoint(width - 150, 150, 0.9);
-    drawHeatPoint(width - 250, 150, 0.6);
-    drawHeatPoint(width - 200, 250, 0.4);
+      // 4. Store the returned job ID so your polling useEffect starts
+      setStatusMessage("Job queued; waiting for completion…");
+      // note: you'll need to lift `jobId` into state if it isn't already:
+      // const [jobId, setJobId] = useState(initialJobId);
+      setJobId(job_id);
 
-    // Center display
-    drawHeatPoint(width / 2, height / 2, 0.8);
+      toast.success("Heatmap request submitted!");
+    } catch (err) {
+      console.error("Heatmap request failed:", err);
+      toast.error(`Failed to start heatmap: ${err.message}`);
+      setIsGenerating(false);
+    }
   };
 
   const handleExport = (format) => {
-    if (!heatmapGenerated) {
-      toast.error("Please generate a heatmap first");
+    if (!heatmapGenerated || !selectedJob) {
+      toast.error("Please generate or select a heatmap first");
       return;
     }
 
-    toast.success(`Heatmap exported as ${format.toUpperCase()}`);
+    if (format === "png" && imageRef.current) {
+      // For PNG, we can actually download the image
+      const link = document.createElement("a");
+      link.href = imageRef.current.src;
+      link.download = `heatmap_${selectedJob.job_id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Heatmap exported as PNG");
+    } else {
+      // For other formats, just show a success message
+      toast.success(`Heatmap exported as ${format.toUpperCase()}`);
+    }
   };
 
   return (
@@ -201,7 +269,37 @@ const HeatmapGeneration = () => {
               )}
             </button>
 
-            {heatmapGenerated && (
+            {isGenerating && statusMessage && (
+              <div className="status-message">{statusMessage}</div>
+            )}
+
+            {jobHistory.length > 0 && (
+              <div className="job-history">
+                <h3 className="history-title">Previous Heatmaps</h3>
+                <div className="history-list">
+                  {jobHistory.map((job) => (
+                    <div
+                      key={job.job_id}
+                      className={`history-item ${
+                        selectedJob && selectedJob.job_id === job.job_id
+                          ? "selected"
+                          : ""
+                      }`}
+                      onClick={() => handleSelectJob(job)}
+                    >
+                      <div className="history-item-name">
+                        {job.input_video_name || "Heatmap"}
+                      </div>
+                      <div className="history-item-date">
+                        {new Date(job.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {heatmapGenerated && selectedJob && (
               <div className="export-buttons">
                 <button
                   onClick={() => handleExport("csv")}
@@ -229,40 +327,57 @@ const HeatmapGeneration = () => {
         <div className="visualization-card">
           <h2 className="section-title">Heatmap Visualization</h2>
 
-          {!heatmapGenerated ? (
+          {!heatmapGenerated || !selectedJob ? (
             <div className="empty-heatmap">
               <Map className="empty-icon" />
               <p className="empty-text">
-                Configure settings and generate a heatmap to visualize foot
-                traffic
+                {jobHistory.length > 0
+                  ? "Select a previous heatmap or generate a new one"
+                  : "Configure settings and generate a heatmap to visualize foot traffic"}
               </p>
             </div>
           ) : (
             <div className="heatmap-visualization">
-              <canvas
-                ref={canvasRef}
-                width={800}
-                height={500}
-                className="heatmap-canvas"
-              />
-
-              <div className="heatmap-legend">
-                <div className="legend-labels">
-                  <span className="legend-title">Traffic Density:</span>
-                  <div className="legend-gradient"></div>
+              {isLoading ? (
+                <div className="loading-heatmap">
+                  <Loader className="spinner" />
+                  <p>Loading heatmap...</p>
                 </div>
-                <div className="legend-values">
-                  <span className="legend-value">Low</span>
-                  <span className="legend-value">Medium</span>
-                  <span className="legend-value">High</span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <img
+                    ref={imageRef}
+                    src={
+                      heatmapService.getHeatmapImageUrl(selectedJob.job_id) ||
+                      "/placeholder.svg"
+                    }
+                    alt="Foot traffic heatmap"
+                    className="heatmap-image"
+                    onLoad={() => setIsLoading(false)}
+                    onError={() => {
+                      setIsLoading(false);
+                      toast.error("Failed to load heatmap image");
+                    }}
+                  />
+                  <div className="heatmap-legend">
+                    <div className="legend-labels">
+                      <span className="legend-title">Traffic Density:</span>
+                      <div className="legend-gradient"></div>
+                    </div>
+                    <div className="legend-values">
+                      <span className="legend-value">Low</span>
+                      <span className="legend-value">Medium</span>
+                      <span className="legend-value">High</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {heatmapGenerated && (
+      {heatmapGenerated && selectedJob && (
         <div className="analysis-card">
           <h2 className="section-title">Heatmap Analysis</h2>
 

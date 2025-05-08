@@ -1,7 +1,10 @@
+"use client";
+
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Menu, X, BarChart2, Video, Map, LogOut } from "lucide-react";
-import "./Navbar.css";
+import toast from "react-hot-toast";
+import "../styles/Navbar.css";
 
 const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,6 +12,7 @@ const Navbar = ({ isAuthenticated, setIsAuthenticated }) => {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    toast.success("Logged out successfully");
     navigate("/");
   };
 

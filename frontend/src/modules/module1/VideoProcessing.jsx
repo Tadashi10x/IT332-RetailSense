@@ -1,77 +1,190 @@
-import { useState } from "react";
+"use client";
+
+import { useState, useEffect } from "react";
 import { Upload, Play, AlertCircle, CheckCircle, Loader } from "lucide-react";
 import toast from "react-hot-toast";
-import "./VideoProcessing.css";
+import { useNavigate } from "react-router-dom";
+import { heatmapService } from "../../services/api";
+import "../../styles/VideoProcessing.css";
+import ProgressScreen from "../../components/ProgressScreen";
+
+const getProgressPercent = (statusMessage) => {
+  // Try to extract percentage from status message
+  if (!statusMessage) return null;
+  const match = statusMessage.match(/(\d+)%/);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  return null;
+};
 
 const VideoProcessing = () => {
   const [file, setFile] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [floorplan, setFloorplan] = useState(null);
+  const [pointsData, setPointsData] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState(0);
   const [processingComplete, setProcessingComplete] = useState(false);
+  const [jobId, setJobId] = useState(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [backendError, setBackendError] = useState(null);
+  const [progressPercent, setProgressPercent] = useState(null);
+  const navigate = useNavigate();
+
+  // Poll for job status if we have a jobId and are processing
+  useEffect(() => {
+    let intervalId;
+
+    if (jobId && isProcessing) {
+      intervalId = setInterval(async () => {
+        try {
+          const response = await heatmapService.getJobStatus(jobId);
+          setStatusMessage(response.message || "Processing video...");
+
+          // Update processing step based on message content
+          if (response.message && response.message.includes("YOLO")) {
+            setProcessingStep(1);
+          } else if (response.message && response.message.includes("track")) {
+            setProcessingStep(2);
+          } else if (
+            (response.message && response.message.includes("Normalizing")) ||
+            (response.message && response.message.includes("Saving"))
+          ) {
+            setProcessingStep(3);
+          }
+
+          // Check if processing is complete
+          if (response.status === "completed") {
+            setIsProcessing(false);
+            setProcessingComplete(true);
+            clearInterval(intervalId);
+            toast.success("Video processing complete");
+          } else if (response.status === "error") {
+            setIsProcessing(false);
+            clearInterval(intervalId);
+            toast.error(`Processing failed: ${response.message}`);
+          }
+        } catch (error) {
+          console.error("Error checking job status:", error);
+          // Don't stop polling on network errors, they might be temporary
+          setStatusMessage("Waiting for server response...");
+        }
+      }, 2000); // Poll every 2 seconds
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [jobId, isProcessing]);
+
+  useEffect(() => {
+    // Update progress percent when statusMessage changes
+    const percent = getProgressPercent(statusMessage);
+    setProgressPercent(percent);
+  }, [statusMessage]);
+
+  useEffect(() => {
+    if (processingComplete && jobId) {
+      // Navigate to heatmap page after a short delay
+      setTimeout(() => {
+        navigate(`/heatmap-generation?jobId=${jobId}`);
+      }, 1200);
+    }
+  }, [processingComplete, jobId, navigate]);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-
     if (!selectedFile) return;
-
-    // Check if file is a video
     if (!selectedFile.type.includes("video/")) {
       toast.error("Please upload a valid video file");
       return;
     }
-
     setFile(selectedFile);
+    setBackendError(null);
   };
 
-  const handleUpload = async () => {
-    if (!file) {
-      toast.error("Please select a file first");
+  const handleFloorplanChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    if (!selectedFile.type.match(/image\/(png|jpg|jpeg)/)) {
+      toast.error("Please upload a valid floorplan image (PNG, JPG, JPEG)");
       return;
     }
-
-    setIsUploading(true);
-
-    // Simulate upload delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    setIsUploading(false);
-    toast.success("Video uploaded successfully");
+    setFloorplan(selectedFile);
+    setBackendError(null);
   };
+
+  const handlePointsChange = (e) => {
+    setPointsData(e.target.value);
+  };
+
+  const isReadyToProcess = file && floorplan && pointsData.trim().length > 0 && !isProcessing && !processingComplete && !backendError;
 
   const handleProcessVideo = async () => {
-    if (!file) {
-      toast.error("Please upload a video first");
+    if (!file || !floorplan || !pointsData.trim()) {
+      toast.error("Please select a video, a floorplan image, and enter points data.");
       return;
     }
-
     setIsProcessing(true);
-    setProcessingStep(1);
+    setProcessingStep(0);
+    setBackendError(null);
+    try {
+      const formData = new FormData();
+      formData.append("videoFile", file);
+      formData.append("floorplanFile", floorplan);
+      formData.append("pointsData", pointsData);
 
-    // Simulate YOLO processing
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    setProcessingStep(2);
+      // Console log all FormData keys and values/files for debugging
+      for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+          console.log(`FormData: ${pair[0]} = [File] name: ${pair[1].name}, size: ${pair[1].size}`);
+        } else {
+          console.log(`FormData: ${pair[0]} = ${pair[1]}`);
+        }
+      }
 
-    // Simulate Deep SORT tracking
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    setProcessingStep(3);
-
-    // Simulate storing movement data
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    setIsProcessing(false);
-    setProcessingComplete(true);
-    toast.success("Video processing complete");
+      const response = await heatmapService.createJob(formData);
+      setJobId(response.job_id);
+      setStatusMessage("Video uploaded and processing started");
+      toast.success("Video uploaded and processing started");
+    } catch (error) {
+      console.error("Error processing video:", error);
+      setIsProcessing(false);
+      setBackendError(error.error || "Failed to process video");
+      toast.error(error.error || "Failed to process video");
+    }
   };
 
   const resetProcess = () => {
     setFile(null);
+    setFloorplan(null);
+    setPointsData("");
     setProcessingStep(0);
     setProcessingComplete(false);
+    setJobId(null);
+    setStatusMessage("");
+    setBackendError(null);
+  };
+
+  const viewHeatmap = () => {
+    if (jobId) {
+      navigate(`/heatmap-generation?jobId=${jobId}`);
+    }
+  };
+
+  const tryAgain = () => {
+    setBackendError(null);
+    setIsProcessing(false);
   };
 
   return (
     <div className="video-processing-container">
+      <ProgressScreen
+        show={isProcessing}
+        percent={progressPercent || 0}
+        label="Processing Video..."
+        statusMessage={statusMessage}
+      />
       <h1 className="page-title">Video Processing</h1>
 
       <div className="upload-card">
@@ -79,61 +192,105 @@ const VideoProcessing = () => {
 
         <div className="upload-area">
           <label className="upload-label">
-            <div className="upload-content">
-              <Upload className="upload-icon" />
-              <p className="upload-text">
-                <span className="upload-text-bold">Click to upload</span> or
-                drag and drop
-              </p>
-              <p className="upload-format">MP4, AVI, MOV (MAX. 500MB)</p>
-            </div>
+            {file ? (
+              <div className="upload-preview">
+                <video className="file-thumbnail-large" src={URL.createObjectURL(file)} controls />
+                <div className="file-info-inside">
+                  <p className="file-name">{file.name}</p>
+                  <p className="file-size">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
+                </div>
+              </div>
+            ) : (
+              <div className="upload-content">
+                <Upload className="upload-icon" />
+                <p className="upload-text">
+                  <span className="upload-text-bold">Click to upload</span> or drag and drop
+                </p>
+                <p className="upload-format">MP4, AVI, MOV (MAX. 500MB)</p>
+              </div>
+            )}
             <input
               type="file"
               className="upload-input"
               accept="video/*"
               onChange={handleFileChange}
-              disabled={isUploading || isProcessing}
+              disabled={isProcessing}
             />
           </label>
         </div>
 
-        {file && (
-          <div className="selected-file">
-            <div className="file-preview">
-              <video
-                className="file-thumbnail"
-                src={URL.createObjectURL(file)}
-              />
-            </div>
-            <div className="file-info">
-              <p className="file-name">{file.name}</p>
-              <p className="file-size">
-                {(file.size / (1024 * 1024)).toFixed(2)} MB
-              </p>
-            </div>
-            {!isUploading && !isProcessing && !processingComplete && (
-              <button onClick={handleUpload} className="upload-button">
-                Upload
-              </button>
-            )}
-            {isUploading && (
-              <div className="uploading-indicator">
-                <Loader className="spinner" />
-                Uploading...
+        <div className="upload-area">
+          <label className="upload-label">
+            {floorplan ? (
+              <div className="upload-preview">
+                <img className="file-thumbnail-large" src={URL.createObjectURL(floorplan)} alt="Floorplan Preview" />
+                <div className="file-info-inside">
+                  <p className="file-name">{floorplan.name}</p>
+                  <p className="file-size">{(floorplan.size / (1024 * 1024)).toFixed(2)} MB</p>
+                </div>
+              </div>
+            ) : (
+              <div className="upload-content">
+                <Upload className="upload-icon" />
+                <p className="upload-text">
+                  <span className="upload-text-bold">Click to upload</span> or drag and drop
+                </p>
+                <p className="upload-format">PNG, JPG, JPEG (MAX. 10MB)</p>
               </div>
             )}
+            <input
+              type="file"
+              className="upload-input"
+              accept="image/png, image/jpg, image/jpeg"
+              onChange={handleFloorplanChange}
+              disabled={isProcessing}
+            />
+          </label>
+        </div>
+
+        <div className="points-area">
+          <label className="points-label">
+            Points Data (format: x,y per line, 4 points required):
+            <textarea
+              className="points-input"
+              rows={4}
+              value={pointsData}
+              onChange={handlePointsChange}
+              placeholder={"e.g.\n0,0\n800,0\n800,600\n0,600"}
+              disabled={isProcessing}
+            />
+          </label>
+        </div>
+
+        {backendError && (
+          <div className="error-message">
+            <AlertCircle className="error-icon" />
+            <div className="error-content">
+              <p className="error-title">Connection Error</p>
+              <p className="error-description">{backendError}</p>
+              <p className="error-help">
+                Please make sure the backend server is running at
+                http://localhost:5000
+              </p>
+              <button onClick={tryAgain} className="try-again-button">
+                Try Again
+              </button>
+            </div>
           </div>
         )}
 
-        {file && !isUploading && !isProcessing && !processingComplete && (
-          <button onClick={handleProcessVideo} className="process-button">
-            <Play className="button-icon" /> Process Video
-          </button>
-        )}
+        <button
+          onClick={handleProcessVideo}
+          className="process-button"
+          disabled={!isReadyToProcess}
+        >
+          <Play className="button-icon" /> Process Video
+        </button>
 
         {isProcessing && (
           <div className="processing-section">
             <h3 className="processing-title">Processing Video</h3>
+            {statusMessage && <p className="status-message">{statusMessage}</p>}
 
             <div className="processing-steps">
               <div className="processing-step">
@@ -195,9 +352,9 @@ const VideoProcessing = () => {
                   )}
                 </div>
                 <div className="step-info">
-                  <p className="step-title">Storing Movement Data</p>
+                  <p className="step-title">Generating Heatmap</p>
                   <p className="step-description">
-                    Saving coordinates and timestamps
+                    Creating visualization of foot traffic
                   </p>
                 </div>
               </div>
@@ -216,11 +373,8 @@ const VideoProcessing = () => {
               <button onClick={resetProcess} className="secondary-button">
                 Process Another Video
               </button>
-              <button
-                onClick={() => (window.location.href = "/heatmap-generation")}
-                className="primary-button"
-              >
-                Generate Heatmap
+              <button onClick={viewHeatmap} className="primary-button">
+                View Heatmap
               </button>
             </div>
           </div>
@@ -251,9 +405,9 @@ const VideoProcessing = () => {
           <div className="guideline-item">
             <AlertCircle className="guideline-icon" />
             <p className="guideline-text">
-              <span className="guideline-highlight">Privacy:</span> The system
-              does not perform facial recognition or store personally
-              identifiable information.
+              <span className="guideline-highlight">Backend Server:</span> Make
+              sure the backend server is running at http://localhost:5000 before
+              processing videos.
             </p>
           </div>
         </div>

@@ -1,0 +1,119 @@
+"""
+heatmap_maker.py
+Handles heatmap generation and blending logic for the backend.
+"""
+
+import cv2
+import numpy as np
+from scipy.ndimage import gaussian_filter
+
+def blend_heatmap(detections, floorplan_path, output_heatmap_path, output_video_path, progress_callback=None):
+    """
+    Generate and blend heatmap from detections.
+    
+    Args:
+        detections: List of detections from object tracking
+        floorplan_path: Path to floorplan image
+        output_heatmap_path: Path to save the heatmap image
+        output_video_path: Path to save the processed video
+        progress_callback: Optional callback function(progress) to report progress
+    """
+    # Load floorplan
+    floorplan = cv2.imread(floorplan_path)
+    if floorplan is None:
+        raise ValueError(f"Could not load floorplan image: {floorplan_path}")
+    
+    # Create heatmap canvas
+    heatmap = np.zeros(floorplan.shape[:2], dtype=np.float32)
+    
+    # Process detections
+    total_detections = len(detections)
+    for i, detection in enumerate(detections):
+        # Get bounding box center
+        bbox = detection['bbox']
+        center_x = int((bbox[0] + bbox[2]) / 2)
+        center_y = int((bbox[1] + bbox[3]) / 2)
+        
+        # Add Gaussian kernel at detection point
+        cv2.circle(heatmap, (center_x, center_y), 20, 1.0, -1)
+        
+        # Update progress
+        if progress_callback:
+            progress = (i + 1) / total_detections
+            progress_callback(progress)
+    
+    # Normalize heatmap
+    heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
+    
+    # Apply Gaussian blur
+    heatmap = gaussian_filter(heatmap, sigma=10)
+    
+    # Convert to color heatmap
+    heatmap_colored = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+    
+    # Blend with floorplan
+    alpha = 0.7
+    beta = 0.3
+    blended = cv2.addWeighted(floorplan, alpha, heatmap_colored, beta, 0)
+    
+    # Save heatmap image
+    cv2.imwrite(output_heatmap_path, blended)
+    
+    # Create video with detections
+    cap = cv2.VideoCapture(detections[0]['video_path'])
+    if not cap.isOpened():
+        raise ValueError("Could not open video for processing")
+    
+    # Get video properties
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    
+    # Create video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+    
+    # Process video frames
+    frame_detections = {}
+    for detection in detections:
+        frame = detection['frame']
+        if frame not in frame_detections:
+            frame_detections[frame] = []
+        frame_detections[frame].append(detection)
+    
+    frame_count = 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        # Draw detections for current frame
+        if frame_count in frame_detections:
+            for detection in frame_detections[frame_count]:
+                bbox = detection['bbox']
+                track_id = detection['track_id']
+                
+                # Draw bounding box
+                cv2.rectangle(frame, 
+                            (int(bbox[0]), int(bbox[1])), 
+                            (int(bbox[2]), int(bbox[3])), 
+                            (0, 255, 0), 2)
+                
+                # Draw track ID
+                cv2.putText(frame, 
+                           f"ID: {track_id}", 
+                           (int(bbox[0]), int(bbox[1] - 10)), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 
+                           0.5, 
+                           (0, 255, 0), 
+                           2)
+        
+        # Write frame
+        out.write(frame)
+        frame_count += 1
+    
+    # Release resources
+    cap.release()
+    out.release()
+
+# Add more heatmap-related utilities as needed 

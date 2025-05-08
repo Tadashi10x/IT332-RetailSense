@@ -1,31 +1,47 @@
+"use client";
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
-import "./Login.css";
+import { authService } from "../services/api";
+import "../styles/Login.css";
 
 const Login = ({ setIsAuthenticated }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+  });
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Simple validation
-    if (!email || !password) {
+    if (!formData.username || !formData.password) {
       toast.error("Please fill in all fields");
       return;
     }
 
-    // Mock authentication - in a real app, you would call your backend API
-    if (email === "admin@example.com" && password === "password") {
-      setIsAuthenticated(true);
-      toast.success("Login successful");
-      navigate("/dashboard");
-    } else {
-      toast.error("Invalid credentials");
+    try {
+      const response = await authService.login(formData.username, formData.password);
+      if (response.success) {
+        setIsAuthenticated(true);
+        toast.success("Login successful");
+        navigate("/dashboard");
+      } else {
+        toast.error(response.message || "Login failed");
+      }
+    } catch (error) {
+      toast.error(error.message || "Login failed");
     }
   };
 
@@ -38,19 +54,18 @@ const Login = ({ setIsAuthenticated }) => {
         </div>
         <form className="login-form" onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email-address" className="form-label">
-              Email address
+            <label htmlFor="username" className="form-label">
+              Username
             </label>
             <input
-              id="email-address"
-              name="email"
-              type="email"
-              autoComplete="email"
+              id="username"
+              name="username"
+              type="text"
               required
               className="form-input"
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your username"
+              value={formData.username}
+              onChange={handleChange}
             />
           </div>
           <div className="form-group">
@@ -62,12 +77,11 @@ const Login = ({ setIsAuthenticated }) => {
                 id="password"
                 name="password"
                 type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
                 required
                 className="form-input"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                value={formData.password}
+                onChange={handleChange}
               />
               <button
                 type="button"
@@ -87,8 +101,17 @@ const Login = ({ setIsAuthenticated }) => {
             Sign in
           </button>
 
-          <div className="login-demo-credentials">
-            <p>Demo credentials: admin@example.com / password</p>
+          <div className="login-footer">
+            <p>
+              Don't have an account?{" "}
+              <button
+                type="button"
+                className="text-link"
+                onClick={() => navigate("/register")}
+              >
+                Create one
+              </button>
+            </p>
           </div>
         </form>
       </div>

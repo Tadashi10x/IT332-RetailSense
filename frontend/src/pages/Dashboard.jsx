@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -10,41 +12,103 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Video, Map, Users, Clock } from "lucide-react";
-import "./Dashboard.css";
+import { heatmapService } from "../services/api";
+import toast from "react-hot-toast";
+import "../styles/Dashboard.css";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
     totalVisitors: 0,
-    peakHour: "14:00-15:00",
+    peakHour: "N/A",
     processedVideos: 0,
     generatedHeatmaps: 0,
   });
 
   const [trafficData, setTrafficData] = useState([]);
+  const [recentJobs, setRecentJobs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Mock data - in a real app, you would fetch this from your backend
-    setStats({
-      totalVisitors: 1248,
-      peakHour: "14:00-15:00",
-      processedVideos: 12,
-      generatedHeatmaps: 8,
-    });
+    const fetchDashboardData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch job history
+        const jobHistory = await heatmapService.getJobHistory();
 
-    setTrafficData([
-      { hour: "9AM", visitors: 45 },
-      { hour: "10AM", visitors: 78 },
-      { hour: "11AM", visitors: 95 },
-      { hour: "12PM", visitors: 132 },
-      { hour: "1PM", visitors: 156 },
-      { hour: "2PM", visitors: 178 },
-      { hour: "3PM", visitors: 143 },
-      { hour: "4PM", visitors: 120 },
-      { hour: "5PM", visitors: 98 },
-      { hour: "6PM", visitors: 87 },
-      { hour: "7PM", visitors: 65 },
-      { hour: "8PM", visitors: 51 },
-    ]);
+        // Set recent jobs (most recent 3)
+        const recent = jobHistory.slice(0, 3).map((job) => ({
+          id: job.job_id,
+          type: job.input_video_name ? "video" : "heatmap",
+          name: job.input_video_name || job.input_floorplan_name || "Job",
+          status: job.status,
+          time: new Date(job.created_at).toLocaleString(),
+        }));
+        setRecentJobs(recent);
+
+        // Calculate stats from job history
+        const completedJobs = jobHistory.filter(
+          (job) => job.status === "completed"
+        );
+        const videoCount = new Set(
+          jobHistory.map((job) => job.input_video_name)
+        ).size;
+        const heatmapCount = completedJobs.length;
+
+        // For this demo, we'll estimate visitor count based on completed jobs
+        // In a real app, this would come from actual detection counts
+        const estimatedVisitors =
+          heatmapCount * 150 + Math.floor(Math.random() * 200);
+
+        setStats({
+          totalVisitors: estimatedVisitors,
+          peakHour: "14:00-15:00", // This would ideally come from real analysis
+          processedVideos: videoCount,
+          generatedHeatmaps: heatmapCount,
+        });
+
+        // Generate traffic data based on time of day
+        // In a real app, this would come from actual detection counts by hour
+        const hours = [
+          "9AM",
+          "10AM",
+          "11AM",
+          "12PM",
+          "1PM",
+          "2PM",
+          "3PM",
+          "4PM",
+          "5PM",
+          "6PM",
+          "7PM",
+          "8PM",
+        ];
+        const peakHourIndex = 5; // 2PM
+
+        const trafficByHour = hours.map((hour, index) => {
+          // Create a bell curve centered around peak hour
+          const distanceFromPeak = Math.abs(index - peakHourIndex);
+          const baseVisitors = 100;
+          const peakVisitors = 180;
+          const falloff = 25;
+
+          const visitors = Math.max(
+            baseVisitors,
+            peakVisitors - distanceFromPeak * falloff
+          );
+
+          return { hour, visitors };
+        });
+
+        setTrafficData(trafficByHour);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+        toast.error("Failed to load dashboard data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
   }, []);
 
   return (
@@ -59,7 +123,9 @@ const Dashboard = () => {
             </div>
             <div className="stat-info">
               <p className="stat-label">Total Visitors</p>
-              <p className="stat-value">{stats.totalVisitors}</p>
+              <p className="stat-value">
+                {isLoading ? "Loading..." : stats.totalVisitors}
+              </p>
             </div>
           </div>
         </div>
@@ -71,7 +137,9 @@ const Dashboard = () => {
             </div>
             <div className="stat-info">
               <p className="stat-label">Peak Hour</p>
-              <p className="stat-value">{stats.peakHour}</p>
+              <p className="stat-value">
+                {isLoading ? "Loading..." : stats.peakHour}
+              </p>
             </div>
           </div>
         </div>
@@ -83,7 +151,9 @@ const Dashboard = () => {
             </div>
             <div className="stat-info">
               <p className="stat-label">Processed Videos</p>
-              <p className="stat-value">{stats.processedVideos}</p>
+              <p className="stat-value">
+                {isLoading ? "Loading..." : stats.processedVideos}
+              </p>
             </div>
           </div>
         </div>
@@ -95,7 +165,9 @@ const Dashboard = () => {
             </div>
             <div className="stat-info">
               <p className="stat-label">Generated Heatmaps</p>
-              <p className="stat-value">{stats.generatedHeatmaps}</p>
+              <p className="stat-value">
+                {isLoading ? "Loading..." : stats.generatedHeatmaps}
+              </p>
             </div>
           </div>
         </div>
@@ -105,15 +177,19 @@ const Dashboard = () => {
         <div className="chart-card">
           <h2 className="chart-title">Hourly Foot Traffic</h2>
           <div className="chart-container">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={trafficData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="visitors" fill="#3f51b5" />
-              </BarChart>
-            </ResponsiveContainer>
+            {isLoading ? (
+              <div className="loading-indicator">Loading chart data...</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trafficData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="hour" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="visitors" fill="#3f51b5" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -130,23 +206,40 @@ const Dashboard = () => {
 
           <div className="recent-activity">
             <h3 className="activity-title">Recent Activity</h3>
-            <div className="activity-list">
-              <div className="activity-item">
-                <div className="activity-indicator green"></div>
-                <p className="activity-text">Processed "Store Front" video</p>
-                <span className="activity-time">2h ago</span>
+            {isLoading ? (
+              <div className="loading-indicator">
+                Loading recent activity...
               </div>
-              <div className="activity-item">
-                <div className="activity-indicator blue"></div>
-                <p className="activity-text">Generated weekly heatmap</p>
-                <span className="activity-time">5h ago</span>
+            ) : recentJobs.length > 0 ? (
+              <div className="activity-list">
+                {recentJobs.map((job) => (
+                  <div className="activity-item" key={job.id}>
+                    <div
+                      className={`activity-indicator ${
+                        job.status === "completed"
+                          ? "green"
+                          : job.status === "error"
+                          ? "red"
+                          : "blue"
+                      }`}
+                    ></div>
+                    <p className="activity-text">
+                      {job.status === "completed"
+                        ? `Completed "${job.name}"`
+                        : job.status === "error"
+                        ? `Error processing "${job.name}"`
+                        : `Processing "${job.name}"`}
+                    </p>
+                    <span className="activity-time">{job.time}</span>
+                  </div>
+                ))}
               </div>
-              <div className="activity-item">
-                <div className="activity-indicator purple"></div>
-                <p className="activity-text">Exported traffic report</p>
-                <span className="activity-time">1d ago</span>
-              </div>
-            </div>
+            ) : (
+              <p className="no-activity">
+                No recent activity found. Start by processing a video or
+                generating a heatmap.
+              </p>
+            )}
           </div>
         </div>
       </div>
