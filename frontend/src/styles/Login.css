@@ -4,16 +4,16 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background-color: #f0f2f5;
+  background-color: var(--background);
 }
 
 .login-card {
   max-width: 400px;
   width: 100%;
-  background-color: white;
+  background-color: var(--card-bg);
   padding: 40px;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
 }
 
 .login-header {
@@ -24,7 +24,7 @@
 .login-title {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--primary-color);
+  color: var(--text-color);
   margin-bottom: 8px;
 }
 
@@ -56,13 +56,16 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 1rem;
-  transition: border-color 0.3s;
+  background: var(--dropbox-bg);
+  color: var(--text-color);
+  transition: border-color 0.3s, background 0.3s;
 }
 
 .form-input:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+  box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.12);
+  background: var(--card-bg);
 }
 
 .password-input-container {

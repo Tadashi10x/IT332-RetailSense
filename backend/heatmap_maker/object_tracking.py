@@ -12,7 +12,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def detect_and_track(video_path, output_path, progress_callback=None):
+def detect_and_track(video_path, output_path, progress_callback=None, preview_folder=None):
     """
     Run person detection and tracking on a video.
     
@@ -20,9 +20,10 @@ def detect_and_track(video_path, output_path, progress_callback=None):
         video_path: Path to input video file
         output_path: Path to save the processed video
         progress_callback: Optional callback function(progress) to report progress
+        preview_folder: Optional folder to save preview images
         
     Returns:
-        Tuple of (output_video_path, heatmap_path)
+        Tuple of (output_video_path, detections)
     """
     # Load YOLO model
     model = YOLO('yolov8n.pt')
@@ -48,6 +49,7 @@ def detect_and_track(video_path, output_path, progress_callback=None):
     # Initialize heatmap
     heatmap = np.zeros((height, width), dtype=np.float32)
     
+    detections_for_heatmap = []
     frame_count = 0
     while cap.isOpened():
         ret, frame = cap.read()
@@ -82,22 +84,38 @@ def detect_and_track(video_path, output_path, progress_callback=None):
             x1, y1, x2, y2 = map(int, ltrb)
             heatmap[y1:y2, x1:x2] += 1
             
+            # Add detection for blend_heatmap
+            detections_for_heatmap.append({
+                'frame': frame_count,
+                'bbox': [x1, y1, x2, y2],
+                'track_id': track_id
+            })
+            
             # Draw bounding box and ID with better contrast
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            
-            # Add black background for text
+
+            # Add black background for text (ID)
             text = f"ID: {track_id}"
             (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
             cv2.rectangle(frame, (x1, y1-text_height-10), (x1+text_width, y1), (0, 0, 0), -1)
             cv2.putText(frame, text, (x1, y1-5),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 255, 255), 2)
+
+            # Draw a small white dot at the center of the box
+            center_x = int((x1 + x2) / 2)
+            center_y = int((y1 + y2) / 2)
+            cv2.circle(frame, (center_x, center_y), 4, (255, 255, 255), -1)
         
         # Write frame
         out.write(frame)
+        # Save preview every 10 frames
+        if preview_folder and frame_count % 10 == 0:
+            preview_path = os.path.join(preview_folder, 'preview_detections.jpg')
+            cv2.imwrite(preview_path, frame)
         
         # Update progress
         frame_count += 1
-        if progress_callback and frame_count % 10 == 0:  # Update progress every 10 frames
+        if progress_callback and frame_count % 10 == 0:
             progress = frame_count / total_frames
             progress_callback(progress)
             logger.debug(f"Processing frame {frame_count}/{total_frames} ({progress*100:.1f}%)")
@@ -106,30 +124,6 @@ def detect_and_track(video_path, output_path, progress_callback=None):
     cap.release()
     out.release()
     
-    # Normalize and convert heatmap to visualization
-    heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
-    heatmap = heatmap.astype(np.uint8)
-    
-    # Use a more contrasting colormap
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_HOT)
-    
-    # Add a colorbar
-    colorbar_height = 30
-    colorbar = np.zeros((colorbar_height, width, 3), dtype=np.uint8)
-    for i in range(width):
-        colorbar[:, i] = cv2.applyColorMap(np.array([[int(255 * i / width)]], dtype=np.uint8), cv2.COLORMAP_HOT)[0, 0]
-    
-    # Add text to colorbar
-    cv2.putText(colorbar, "Low", (10, colorbar_height-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    cv2.putText(colorbar, "High", (width-60, colorbar_height-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    
-    # Combine heatmap and colorbar
-    final_heatmap = np.vstack([heatmap, colorbar])
-    
-    # Save heatmap
-    heatmap_path = output_path.rsplit('.', 1)[0] + '_heatmap.jpg'
-    cv2.imwrite(heatmap_path, final_heatmap)
-    
-    return output_path, heatmap_path
+    return output_path, detections_for_heatmap
 
 # Add more tracking-related utilities as needed 

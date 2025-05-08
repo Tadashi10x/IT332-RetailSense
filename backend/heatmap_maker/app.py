@@ -12,12 +12,14 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from job_manager import init_db, get_db_connection
 from video_processing import validate_video_file
-from object_tracking import detect_and_track
 from heatmap_maker import blend_heatmap
 from utils import hash_password, verify_password
 import datetime
 import cv2
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+import shutil
+import json
+from object_tracking import detect_and_track
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -32,7 +34,7 @@ jwt = JWTManager(app)
 CORS(app, resources={
     r"/api/*": {
         "origins": ["http://localhost:5173"],  # Frontend URL
-        "methods": ["GET", "POST", "OPTIONS"],
+        "methods": ["GET", "POST", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True
     }
@@ -52,51 +54,69 @@ def allowed_file(filename, allowed_extensions):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
 def process_video_job(job_id):
-    """Process a video job in the background."""
+    """Process a video job in the background (restore backend detection)."""
     try:
         job = jobs[job_id]
         job['status'] = 'processing'
         job['message'] = 'Starting video processing...'
+        job['cancelled'] = False
 
         # Validate video file
         video_path = job['input_files']['video']
+        floorplan_path = job['input_files']['floorplan']
+        points_path = job['input_files']['points']
+        with open(points_path, 'r') as f:
+            points_data = json.load(f)
         cap = validate_video_file(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         cap.release()
 
         # Update status for YOLO detection
         job['message'] = 'Running YOLO detection (0%)'
-        
-        # Run object detection and tracking
-        output_video_path, heatmap_path = detect_and_track(
+        output_video_path = job['output_files_expected']['video']
+        output_video_path, detections = detect_and_track(
             video_path,
-            job['output_files_expected']['video'],
-            progress_callback=lambda p: update_job_progress(job_id, 'YOLO detection', p)
+            output_video_path,
+            progress_callback=lambda p: update_job_progress(job_id, 'YOLO detection', p),
+            preview_folder=job['output_files_expected']['image'] and os.path.dirname(job['output_files_expected']['image'])
+        )
+
+        # For testing: use static points from Points/floorplan_points.txt
+        points = [[768, 204], [690, 200], [655, 305], [793, 309]]
+
+        # Now, generate the blended heatmap using blend_heatmap with real detections and points
+        output_heatmap_image_path = job['output_files_expected']['image']
+        blend_heatmap(
+            detections,
+            floorplan_path,
+            output_heatmap_image_path,
+            output_video_path,
+            points,
+            preview_folder=os.path.dirname(output_heatmap_image_path)
         )
 
         # Update status for heatmap generation
         job['message'] = 'Processing completed successfully'
-        
-        # Mark job as completed
         job['status'] = 'completed'
         job['message'] = 'Processing completed successfully'
-        
         # Update database
         conn = get_db_connection()
         conn.execute('''
             UPDATE jobs 
             SET status = ?, message = ?, updated_at = CURRENT_TIMESTAMP, output_heatmap_path = ?
             WHERE job_id = ?
-        ''', (job['status'], job['message'], heatmap_path, job_id))
+        ''', (job['status'], job['message'], output_heatmap_image_path, job_id))
         conn.commit()
         conn.close()
 
     except Exception as e:
-        # Handle any errors during processing
-        job['status'] = 'error'
-        job['message'] = f'Error during processing: {str(e)}'
+        if hasattr(job, 'cancelled') and job['cancelled']:
+            job['status'] = 'cancelled'
+            job['message'] = 'Job was cancelled by user.'
+        else:
+            job['status'] = 'error'
+            job['message'] = f'Error during processing: {str(e)}'
         logger.error(f"Error processing job {job_id}: {str(e)}", exc_info=True)
-        
         # Update database with error
         conn = get_db_connection()
         conn.execute('''
@@ -130,27 +150,27 @@ def create_heatmap_job():
         logger.debug(f"Files in request: {request.files}")
         logger.debug(f"Form data: {request.form}")
 
-        if 'videoFile' not in request.files or 'floorplanFile' not in request.files:
-            logger.error("Missing required files")
-            return jsonify({"error": "Missing videoFile or floorplanFile"}), 400
+        if 'videoFile' not in request.files:
+            logger.error("Missing required video file")
+            return jsonify({"error": "Missing videoFile"}), 400
         
         points_data_str = request.form.get('pointsData')
         if not points_data_str:
             logger.error("Missing points data")
             return jsonify({"error": "Missing pointsData"}), 400
+        try:
+            points_data = json.loads(points_data_str)
+            if not (isinstance(points_data, list) and len(points_data) == 4):
+                raise ValueError("pointsData must be a list of 4 points")
+        except Exception as e:
+            logger.error(f"Invalid pointsData: {e}")
+            return jsonify({"error": f"Invalid pointsData: {e}"}), 400
 
         video_file = request.files['videoFile']
-        floorplan_file = request.files['floorplanFile']
-
         logger.debug(f"Video file: {video_file.filename}")
-        logger.debug(f"Floorplan file: {floorplan_file.filename}")
-
         if not (video_file.filename and allowed_file(video_file.filename, ALLOWED_EXTENSIONS_VIDEO)):
             logger.error("Invalid video file type")
             return jsonify({"error": "Invalid video file type"}), 400
-        if not (floorplan_file.filename and allowed_file(floorplan_file.filename, ALLOWED_EXTENSIONS_IMAGE)):
-            logger.error("Invalid floorplan image type")
-            return jsonify({"error": "Invalid floorplan image type"}), 400
 
         job_id = str(uuid.uuid4())
         logger.debug(f"Generated job ID: {job_id}")
@@ -161,18 +181,26 @@ def create_heatmap_job():
         os.makedirs(job_results_folder, exist_ok=True)
 
         video_filename = secure_filename(video_file.filename)
-        floorplan_filename = secure_filename(floorplan_file.filename)
-        points_filename = f"points_{job_id}.txt"
+        points_filename = f"points_{job_id}.json"
+        floorplan_filename = f"floorplan_{job_id}.jpg"
 
         input_video_path = os.path.join(job_upload_folder, video_filename)
-        input_floorplan_path = os.path.join(job_upload_folder, floorplan_filename)
         input_points_path = os.path.join(job_upload_folder, points_filename)
+        input_floorplan_path = os.path.join(job_upload_folder, floorplan_filename)
 
         logger.debug(f"Saving files to: {job_upload_folder}")
         video_file.save(input_video_path)
-        floorplan_file.save(input_floorplan_path)
         with open(input_points_path, 'w') as f:
-            f.write(points_data_str)
+            json.dump(points_data, f)
+
+        # Extract first frame as floorplan
+        cap = cv2.VideoCapture(input_video_path)
+        ret, frame = cap.read()
+        cap.release()
+        if not ret:
+            logger.error("Failed to extract first frame from video")
+            return jsonify({"error": "Failed to extract first frame from video"}), 500
+        cv2.imwrite(input_floorplan_path, frame)
 
         output_heatmap_image_path = os.path.join(job_results_folder, f"video_{job_id}_heatmap.jpg")
         output_processed_video_path = os.path.join(job_results_folder, f"video_{job_id}.mp4")
@@ -202,8 +230,8 @@ def create_heatmap_job():
             logger.debug("Creating database entry")
             conn.execute('''
                 INSERT INTO jobs (job_id, user, input_video_name, input_floorplan_name, status, message)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (job_id, current_user, video_filename, floorplan_filename, 'pending', 'Job submitted, awaiting processing.'))
+                VALUES (?, ?, ?, ?, ?, ?)''',
+                (job_id, current_user, video_filename, floorplan_filename, 'pending', 'Job submitted, awaiting processing.'))
             conn.commit()
             logger.debug("Database entry created successfully")
         except Exception as db_error:
@@ -353,6 +381,70 @@ def get_user_info():
         return jsonify({"error": f"Database error: {str(e)}"}), 500
     finally:
         conn.close()
+
+@app.route('/api/heatmap_jobs/<job_id>', methods=['DELETE'])
+@jwt_required()
+def delete_heatmap_job(job_id):
+    try:
+        conn = get_db_connection()
+        job_row = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        if not job_row:
+            conn.close()
+            return jsonify({"error": "Job not found"}), 404
+        # Remove from DB
+        conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
+        conn.commit()
+        conn.close()
+        # Remove files (results and uploads)
+        results_folder = os.path.join(RESULTS_FOLDER, job_id)
+        uploads_folder = os.path.join(UPLOAD_FOLDER, job_id)
+        for folder in [results_folder, uploads_folder]:
+            if os.path.exists(folder):
+                shutil.rmtree(folder)
+        return jsonify({"success": True, "message": "Heatmap job deleted."})
+    except Exception as e:
+        logger.error(f"Error deleting job {job_id}: {str(e)}", exc_info=True)
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
+
+@app.route('/api/heatmap_jobs/<job_id>/cancel', methods=['POST'])
+@jwt_required()
+def cancel_heatmap_job(job_id):
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    job['cancelled'] = True
+    return jsonify({"success": True, "message": "Job cancelled."})
+
+@app.route('/api/heatmap_jobs/<job_id>/preview/detections', methods=['GET'])
+def get_detection_preview(job_id):
+    job_folder = os.path.join(RESULTS_FOLDER, job_id)
+    preview_path = os.path.join(job_folder, 'preview_detections.jpg')
+    if not os.path.exists(preview_path):
+        return jsonify({"error": "No detection preview available yet."}), 404
+    return send_from_directory(job_folder, 'preview_detections.jpg')
+
+@app.route('/api/heatmap_jobs/<job_id>/preview/heatmap', methods=['GET'])
+def get_heatmap_preview(job_id):
+    job_folder = os.path.join(RESULTS_FOLDER, job_id)
+    preview_path = os.path.join(job_folder, 'preview_heatmap.jpg')
+    if not os.path.exists(preview_path):
+        return jsonify({"error": "No heatmap preview available yet."}), 404
+    return send_from_directory(job_folder, 'preview_heatmap.jpg')
+
+@app.route('/api/heatmap_jobs/<job_id>/detections', methods=['POST'])
+def receive_live_detections(job_id):
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    try:
+        data = request.get_json()
+        detections = data.get('detections', [])
+        if 'live_detections' not in jobs[job_id]:
+            jobs[job_id]['live_detections'] = []
+        jobs[job_id]['live_detections'].extend(detections)
+        # Optionally, trigger heatmap update here
+        return jsonify({'success': True, 'count': len(detections)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
     init_db()

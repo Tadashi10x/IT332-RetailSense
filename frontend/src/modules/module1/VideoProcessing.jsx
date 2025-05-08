@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Upload, Play, AlertCircle, CheckCircle, Loader } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Upload, Play, AlertCircle, CheckCircle, Loader, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { heatmapService } from "../../services/api";
 import "../../styles/VideoProcessing.css";
-import ProgressScreen from "../../components/ProgressScreen";
+import VideoUploadBox from "./VideoUploadBox";
+import ProgressCircle from "./ProgressCircle";
+import API_BASE_URL from "../../config";
+import DetectionOverlay from "./DetectionOverlay";
 
 const getProgressPercent = (statusMessage) => {
   // Try to extract percentage from status message
@@ -29,7 +32,14 @@ const VideoProcessing = () => {
   const [statusMessage, setStatusMessage] = useState("");
   const [backendError, setBackendError] = useState(null);
   const [progressPercent, setProgressPercent] = useState(null);
+  const [firstFrame, setFirstFrame] = useState(null);
+  const [plottedPoints, setPlottedPoints] = useState([]);
+  const [heatmapPreview, setHeatmapPreview] = useState(null);
   const navigate = useNavigate();
+  const [detectionResults, setDetectionResults] = useState([]);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [useStubDetection, setUseStubDetection] = useState(false);
 
   // Poll for job status if we have a jobId and are processing
   useEffect(() => {
@@ -85,12 +95,44 @@ const VideoProcessing = () => {
 
   useEffect(() => {
     if (processingComplete && jobId) {
-      // Navigate to heatmap page after a short delay
-      setTimeout(() => {
-        navigate(`/heatmap-generation?jobId=${jobId}`);
-      }, 1200);
+      navigate(`/heatmap-generation?jobId=${jobId}`);
     }
   }, [processingComplete, jobId, navigate]);
+
+  // Fetch first frame as PNG when video is selected
+  useEffect(() => {
+    if (!file) return;
+    // Simulate backend call to get first frame as PNG
+    // Replace with actual API call
+    const video = document.createElement('video');
+    video.src = URL.createObjectURL(file);
+    video.currentTime = 0.1;
+    video.onloadeddata = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      setFirstFrame(canvas.toDataURL('image/png'));
+    };
+  }, [file]);
+
+  // Handle point plotting on the first frame
+  const handleFrameClick = (e) => {
+    if (plottedPoints.length >= 4) return;
+    const rect = rightBoxRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width).toFixed(4);
+    const y = ((e.clientY - rect.top) / rect.height).toFixed(4);
+    setPlottedPoints([...plottedPoints, { x, y }]);
+  };
+
+  // Remove a point if clicked
+  const handleRemovePoint = (idx) => {
+    setPlottedPoints(plottedPoints.filter((_, i) => i !== idx));
+  };
+
+  // Only enable process button if video is uploaded and 4 points are placed
+  const isReadyToProcess = file && plottedPoints.length === 4 && !isProcessing && !processingComplete && !backendError;
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -101,6 +143,8 @@ const VideoProcessing = () => {
     }
     setFile(selectedFile);
     setBackendError(null);
+    setPlottedPoints([]);
+    setFirstFrame(null);
   };
 
   const handleFloorplanChange = (e) => {
@@ -118,40 +162,37 @@ const VideoProcessing = () => {
     setPointsData(e.target.value);
   };
 
-  const isReadyToProcess = file && floorplan && pointsData.trim().length > 0 && !isProcessing && !processingComplete && !backendError;
-
   const handleProcessVideo = async () => {
-    if (!file || !floorplan || !pointsData.trim()) {
-      toast.error("Please select a video, a floorplan image, and enter points data.");
+    if (!file || plottedPoints.length !== 4) {
+      toast.error("Please select a video and plot 4 points.");
       return;
     }
     setIsProcessing(true);
-    setProcessingStep(0);
     setBackendError(null);
     try {
       const formData = new FormData();
       formData.append("videoFile", file);
-      formData.append("floorplanFile", floorplan);
-      formData.append("pointsData", pointsData);
-
-      // Console log all FormData keys and values/files for debugging
-      for (let pair of formData.entries()) {
-        if (pair[1] instanceof File) {
-          console.log(`FormData: ${pair[0]} = [File] name: ${pair[1].name}, size: ${pair[1].size}`);
-        } else {
-          console.log(`FormData: ${pair[0]} = ${pair[1]}`);
-        }
-      }
-
+      formData.append("pointsData", JSON.stringify(plottedPoints));
       const response = await heatmapService.createJob(formData);
       setJobId(response.job_id);
       setStatusMessage("Video uploaded and processing started");
       toast.success("Video uploaded and processing started");
     } catch (error) {
-      console.error("Error processing video:", error);
       setIsProcessing(false);
       setBackendError(error.error || "Failed to process video");
       toast.error(error.error || "Failed to process video");
+    }
+  };
+
+  const handleCancelJob = async () => {
+    if (!jobId) return;
+    try {
+      await heatmapService.cancelJob(jobId);
+      setIsProcessing(false);
+      setStatusMessage("Processing cancelled.");
+      toast("Processing cancelled");
+    } catch (err) {
+      toast.error("Failed to cancel job");
     }
   };
 
@@ -178,239 +219,88 @@ const VideoProcessing = () => {
   };
 
   return (
-    <div className="video-processing-container">
-      <ProgressScreen
-        show={isProcessing}
-        percent={progressPercent || 0}
-        label="Processing Video..."
-        statusMessage={statusMessage}
-      />
+    <div className="video-processing-overhaul" style={{ position: 'relative', minHeight: '85vh', width: '100%', padding: 0, margin: 0, background: 'var(--background)', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
       <h1 className="page-title">Video Processing</h1>
-
-      <div className="upload-card">
-        <h2 className="section-title">Upload CCTV Footage</h2>
-
-        <div className="upload-area">
-          <label className="upload-label">
-            {file ? (
-              <div className="upload-preview">
-                <video className="file-thumbnail-large" src={URL.createObjectURL(file)} controls />
-                <div className="file-info-inside">
-                  <p className="file-name">{file.name}</p>
-                  <p className="file-size">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                </div>
-              </div>
-            ) : (
-              <div className="upload-content">
-                <Upload className="upload-icon" />
-                <p className="upload-text">
-                  <span className="upload-text-bold">Click to upload</span> or drag and drop
-                </p>
-                <p className="upload-format">MP4, AVI, MOV (MAX. 500MB)</p>
-              </div>
-            )}
-            <input
-              type="file"
-              className="upload-input"
-              accept="video/*"
-              onChange={handleFileChange}
-              disabled={isProcessing}
-            />
-          </label>
-        </div>
-
-        <div className="upload-area">
-          <label className="upload-label">
-            {floorplan ? (
-              <div className="upload-preview">
-                <img className="file-thumbnail-large" src={URL.createObjectURL(floorplan)} alt="Floorplan Preview" />
-                <div className="file-info-inside">
-                  <p className="file-name">{floorplan.name}</p>
-                  <p className="file-size">{(floorplan.size / (1024 * 1024)).toFixed(2)} MB</p>
-                </div>
-              </div>
-            ) : (
-              <div className="upload-content">
-                <Upload className="upload-icon" />
-                <p className="upload-text">
-                  <span className="upload-text-bold">Click to upload</span> or drag and drop
-                </p>
-                <p className="upload-format">PNG, JPG, JPEG (MAX. 10MB)</p>
-              </div>
-            )}
-            <input
-              type="file"
-              className="upload-input"
-              accept="image/png, image/jpg, image/jpeg"
-              onChange={handleFloorplanChange}
-              disabled={isProcessing}
-            />
-          </label>
-        </div>
-
-        <div className="points-area">
-          <label className="points-label">
-            Points Data (format: x,y per line, 4 points required):
-            <textarea
-              className="points-input"
-              rows={4}
-              value={pointsData}
-              onChange={handlePointsChange}
-              placeholder={"e.g.\n0,0\n800,0\n800,600\n0,600"}
-              disabled={isProcessing}
-            />
-          </label>
-        </div>
-
-        {backendError && (
-          <div className="error-message">
-            <AlertCircle className="error-icon" />
-            <div className="error-content">
-              <p className="error-title">Connection Error</p>
-              <p className="error-description">{backendError}</p>
-              <p className="error-help">
-                Please make sure the backend server is running at
-                http://localhost:5000
-              </p>
-              <button onClick={tryAgain} className="try-again-button">
-                Try Again
-              </button>
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={handleProcessVideo}
-          className="process-button"
-          disabled={!isReadyToProcess}
-        >
-          <Play className="button-icon" /> Process Video
-        </button>
-
-        {isProcessing && (
-          <div className="processing-section">
-            <h3 className="processing-title">Processing Video</h3>
-            {statusMessage && <p className="status-message">{statusMessage}</p>}
-
-            <div className="processing-steps">
-              <div className="processing-step">
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+        <div style={{ width: '60vw', maxWidth: 900, minWidth: 320, height: '60vh', minHeight: 320, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <VideoUploadBox file={file} onFileChange={handleFileChange} videoRef={videoRef} />
+          {/* Point plotting overlay */}
+          {file && !isProcessing && (
+            <div
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: plottedPoints.length < 4 ? 'crosshair' : 'default', zIndex: 20 }}
+              onClick={e => {
+                if (plottedPoints.length >= 4) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width).toFixed(4);
+                const y = ((e.clientY - rect.top) / rect.height).toFixed(4);
+                setPlottedPoints([...plottedPoints, { x, y }]);
+              }}
+            >
+              {/* Show first frame as background for plotting */}
+              {firstFrame && (
+                <img
+                  src={firstFrame}
+                  alt="First frame"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, filter: 'brightness(0.95)', position: 'absolute', top: 0, left: 0, zIndex: 1 }}
+                />
+              )}
+              {/* Plotted points */}
+              {plottedPoints.map((pt, idx) => (
                 <div
-                  className={`step-indicator ${
-                    processingStep >= 1 ? "active" : ""
-                  }`}
+                  key={idx}
+                  style={{
+                    position: 'absolute',
+                    left: `calc(${pt.x * 100}% - 10px)` ,
+                    top: `calc(${pt.y * 100}% - 10px)` ,
+                    width: 20, height: 20, borderRadius: '50%', background: '#fff', border: '2px solid #222',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2
+                  }}
+                  title="Remove point"
+                  onClick={e => { e.stopPropagation(); setPlottedPoints(plottedPoints.filter((_, i) => i !== idx)); }}
                 >
-                  {processingStep > 1 ? (
-                    <CheckCircle className="step-icon" />
-                  ) : processingStep === 1 ? (
-                    <Loader className="spinner" />
-                  ) : (
-                    "1"
-                  )}
+                  <span style={{ color: '#222', fontWeight: 'bold', fontSize: 12 }}>{idx + 1}</span>
                 </div>
-                <div className="step-info">
-                  <p className="step-title">Person Detection with YOLO</p>
-                  <p className="step-description">
-                    Identifying individuals in video frames
-                  </p>
-                </div>
-              </div>
-
-              <div className="processing-step">
-                <div
-                  className={`step-indicator ${
-                    processingStep >= 2 ? "active" : ""
-                  }`}
-                >
-                  {processingStep > 2 ? (
-                    <CheckCircle className="step-icon" />
-                  ) : processingStep === 2 ? (
-                    <Loader className="spinner" />
-                  ) : (
-                    "2"
-                  )}
-                </div>
-                <div className="step-info">
-                  <p className="step-title">Movement Tracking with Deep SORT</p>
-                  <p className="step-description">
-                    Tracking individuals across video frames
-                  </p>
-                </div>
-              </div>
-
-              <div className="processing-step">
-                <div
-                  className={`step-indicator ${
-                    processingStep >= 3 ? "active" : ""
-                  }`}
-                >
-                  {processingStep > 3 ? (
-                    <CheckCircle className="step-icon" />
-                  ) : processingStep === 3 ? (
-                    <Loader className="spinner" />
-                  ) : (
-                    "3"
-                  )}
-                </div>
-                <div className="step-info">
-                  <p className="step-title">Generating Heatmap</p>
-                  <p className="step-description">
-                    Creating visualization of foot traffic
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
-          </div>
-        )}
-
-        {processingComplete && (
-          <div className="completion-section">
-            <div className="success-message">
-              <CheckCircle className="success-icon" />
-              <p>Video processing completed successfully!</p>
+          )}
+          {/* Progress overlay during processing */}
+          {isProcessing && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0, left: 0, width: '100%', height: '100%',
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                zIndex: 100
+              }}
+            >
+              <ProgressCircle percent={progressPercent || 0} />
             </div>
-
-            <div className="completion-actions">
-              <button onClick={resetProcess} className="secondary-button">
-                Process Another Video
-              </button>
-              <button onClick={viewHeatmap} className="primary-button">
-                View Heatmap
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+          {/* Detection overlay (only during processing) */}
+          {isProcessing && (
+            <DetectionOverlay
+              videoRef={videoRef}
+              canvasRef={canvasRef}
+              detectionResults={detectionResults}
+              setDetectionResults={setDetectionResults}
+              isProcessing={isProcessing}
+              jobId={jobId}
+              useStubDetection={useStubDetection}
+            />
+          )}
+        </div>
       </div>
-
-      <div className="guidelines-card">
-        <h2 className="section-title">Processing Guidelines</h2>
-
-        <div className="guidelines-list">
-          <div className="guideline-item">
-            <AlertCircle className="guideline-icon" />
-            <p className="guideline-text">
-              <span className="guideline-highlight">Video Quality:</span> For
-              best results, use footage with good lighting and minimal
-              obstructions.
-            </p>
-          </div>
-
-          <div className="guideline-item">
-            <AlertCircle className="guideline-icon" />
-            <p className="guideline-text">
-              <span className="guideline-highlight">Processing Time:</span>{" "}
-              Larger videos may take longer to process. Please be patient.
-            </p>
-          </div>
-
-          <div className="guideline-item">
-            <AlertCircle className="guideline-icon" />
-            <p className="guideline-text">
-              <span className="guideline-highlight">Backend Server:</span> Make
-              sure the backend server is running at http://localhost:5000 before
-              processing videos.
-            </p>
-          </div>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 40 }}>
+        {isProcessing ? (
+          <button className="process-button" style={{ background: '#232526', color: '#fff', border: '1.5px solid #444', fontWeight: 500, fontSize: 16, minWidth: 120 }} onClick={handleCancelJob}>
+            Cancel
+          </button>
+        ) : (
+          <button className="process-button" onClick={handleProcessVideo} disabled={!isReadyToProcess}>
+            Process Video
+          </button>
+        )}
       </div>
     </div>
   );

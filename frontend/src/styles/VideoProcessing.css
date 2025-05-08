@@ -23,11 +23,18 @@ body {
   padding: 0 20px;
 }
 
-.page-title {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 24px;
-  color: var(--text-color);
+h1.page-title, h2.page-title, .page-title, .section-title {
+  color: #fff !important;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.25), 0 1px 0 #222 !important;
+}
+
+.page-title, .h1 {
+  color: #fff !important;
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-top: 40px;
+  margin-bottom: 32px;
+  text-align: center;
 }
 
 .upload-card,
@@ -44,7 +51,6 @@ body {
   font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 16px;
-  color: var(--text-color);
 }
 
 .upload-area {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Calendar, Clock, Download, Filter, Map, Loader } from "lucide-react";
+import { Calendar, Clock, Download, Filter, Map, Loader, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useLocation } from "react-router-dom";
 import { heatmapService } from "../../services/api";
@@ -178,6 +178,21 @@ const HeatmapGeneration = () => {
     }
   };
 
+  const handleDeleteJob = async (job) => {
+    if (!window.confirm(`Are you sure you want to delete heatmap for "${job.input_video_name || 'Heatmap'}"? This cannot be undone.`)) return;
+    try {
+      await heatmapService.deleteJob(job.job_id);
+      toast.success("Heatmap deleted.");
+      setJobHistory((prev) => prev.filter((j) => j.job_id !== job.job_id));
+      if (selectedJob && selectedJob.job_id === job.job_id) {
+        setSelectedJob(null);
+        setHeatmapGenerated(false);
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to delete heatmap.");
+    }
+  };
+
   return (
     <div className="heatmap-container">
       <h1 className="page-title">Heatmap Generation</h1>
@@ -286,13 +301,24 @@ const HeatmapGeneration = () => {
                           : ""
                       }`}
                       onClick={() => handleSelectJob(job)}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
                     >
-                      <div className="history-item-name">
-                        {job.input_video_name || "Heatmap"}
+                      <div>
+                        <div className="history-item-name">
+                          {job.input_video_name || "Heatmap"}
+                        </div>
+                        <div className="history-item-date">
+                          {new Date(job.created_at).toLocaleDateString()}
+                        </div>
                       </div>
-                      <div className="history-item-date">
-                        {new Date(job.created_at).toLocaleDateString()}
-                      </div>
+                      <button
+                        className="delete-btn"
+                        title="Delete heatmap"
+                        onClick={e => { e.stopPropagation(); handleDeleteJob(job); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#e53935", marginLeft: 8 }}
+                      >
+                        <Trash2 size={20} />
+                      </button>
                     </div>
                   ))}
                 </div>

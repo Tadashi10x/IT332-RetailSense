@@ -128,6 +128,24 @@ export const heatmapService = {
   getProcessedVideoUrl: (jobId) => {
     return `${API_BASE_URL}/heatmap_jobs/${jobId}/result/video`;
   },
+
+  deleteJob: async (jobId) => {
+    try {
+      const response = await apiClient.delete(`/heatmap_jobs/${jobId}`);
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  },
+
+  cancelJob: async (jobId) => {
+    try {
+      const response = await apiClient.post(`/heatmap_jobs/${jobId}/cancel`);
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  },
 };
 
 // Export the API client for other custom requests
