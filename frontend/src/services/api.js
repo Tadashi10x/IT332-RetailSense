@@ -137,6 +137,43 @@ export const heatmapService = {
   getProcessedVideoUrl: (jobId) => {
     return `${API_BASE_URL}/heatmap_jobs/${jobId}/result/video`;
   },
+
+  exportHeatmapCsv: async (jobId) => {
+    try {
+      const response = await apiClient.get(`/heatmap_jobs/${jobId}/export/csv`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'text/csv'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  },
+
+  exportHeatmapPdf: async (jobId) => {
+    try {
+      const response = await apiClient.get(`/heatmap_jobs/${jobId}/export/pdf`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  },
+
+  getHeatmapAnalysis: async (jobId) => {
+    try {
+      const response = await apiClient.get(`/heatmap_jobs/${jobId}/analysis`);
+      return response.data;
+    } catch (error) {
+      throw error.response ? error.response.data : error;
+    }
+  }
 };
 
 // Export the API client for other custom requests

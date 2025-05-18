@@ -119,4 +119,89 @@ def blend_heatmap(detections, floorplan_path, output_heatmap_path, output_video_
     cap.release()
     out.release()
 
+def analyze_heatmap(heatmap, floorplan_shape):
+    """
+    Analyze heatmap data to identify traffic patterns and generate insights.
+    
+    Args:
+        heatmap: numpy array of heatmap data
+        floorplan_shape: tuple of (height, width) of the floorplan
+        
+    Returns:
+        dict containing analysis results
+    """
+    # Normalize heatmap to 0-100 range for percentage calculations
+    heatmap_norm = cv2.normalize(heatmap, None, 0, 100, cv2.NORM_MINMAX)
+    
+    # Define traffic thresholds
+    HIGH_THRESHOLD = 70
+    MEDIUM_THRESHOLD = 40
+    LOW_THRESHOLD = 20
+    
+    # Calculate total area
+    total_area = floorplan_shape[0] * floorplan_shape[1]
+    
+    # Initialize areas dictionary
+    areas = {
+        'high': {'pixels': 0, 'regions': []},
+        'medium': {'pixels': 0, 'regions': []},
+        'low': {'pixels': 0, 'regions': []}
+    }
+    
+    # Analyze regions
+    height, width = heatmap_norm.shape
+    region_size = 50  # Size of region to analyze (in pixels)
+    
+    for y in range(0, height, region_size):
+        for x in range(0, width, region_size):
+            # Get region
+            region = heatmap_norm[y:min(y+region_size, height), x:min(x+region_size, width)]
+            avg_density = np.mean(region)
+            
+            # Categorize region
+            if avg_density >= HIGH_THRESHOLD:
+                areas['high']['pixels'] += region.size
+                areas['high']['regions'].append({
+                    'x': x,
+                    'y': y,
+                    'density': round(avg_density, 1)
+                })
+            elif avg_density >= MEDIUM_THRESHOLD:
+                areas['medium']['pixels'] += region.size
+                areas['medium']['regions'].append({
+                    'x': x,
+                    'y': y,
+                    'density': round(avg_density, 1)
+                })
+            elif avg_density >= LOW_THRESHOLD:
+                areas['low']['pixels'] += region.size
+                areas['low']['regions'].append({
+                    'x': x,
+                    'y': y,
+                    'density': round(avg_density, 1)
+                })
+    
+    # Calculate percentages
+    for category in areas:
+        areas[category]['percentage'] = round((areas[category]['pixels'] / total_area) * 100, 1)
+    
+    # Generate recommendations
+    recommendations = []
+    
+    if areas['high']['percentage'] > 30:
+        recommendations.append("Consider redistributing traffic from high-density areas to improve customer flow")
+    if areas['low']['percentage'] > 40:
+        recommendations.append("Implement strategies to increase traffic in low-density areas")
+    if areas['medium']['percentage'] < 30:
+        recommendations.append("Optimize store layout to create more balanced traffic distribution")
+    
+    # Add peak hours analysis if available
+    peak_hours = analyze_peak_hours(heatmap)  # You'll need to implement this based on your data
+    
+    return {
+        'areas': areas,
+        'recommendations': recommendations,
+        'peak_hours': peak_hours
+    }
+
 # Add more heatmap-related utilities as needed 

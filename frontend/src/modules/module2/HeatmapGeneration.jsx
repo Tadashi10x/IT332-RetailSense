@@ -157,24 +157,74 @@ const HeatmapGeneration = () => {
     }
   };
 
-  const handleExport = (format) => {
+  const handleExport = async (format) => {
     if (!heatmapGenerated || !selectedJob) {
       toast.error("Please generate or select a heatmap first");
       return;
     }
 
-    if (format === "png" && imageRef.current) {
-      // For PNG, we can actually download the image
-      const link = document.createElement("a");
-      link.href = imageRef.current.src;
-      link.download = `heatmap_${selectedJob.job_id}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("Heatmap exported as PNG");
-    } else {
-      // For other formats, just show a success message
-      toast.success(`Heatmap exported as ${format.toUpperCase()}`);
+    try {
+      let blob;
+      let filename;
+      let mimeType;
+
+      switch (format) {
+        case "png":
+          if (imageRef.current) {
+            // For PNG, we can use the image source directly
+            const link = document.createElement("a");
+            link.href = imageRef.current.src;
+            link.download = `heatmap_${selectedJob.job_id}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Heatmap exported as PNG");
+          }
+          break;
+
+        case "csv":
+          mimeType = 'text/csv';
+          filename = `heatmap_${selectedJob.job_id}.csv`;
+          blob = await heatmapService.exportHeatmapCsv(selectedJob.job_id);
+          break;
+
+        case "pdf":
+          mimeType = 'application/pdf';
+          filename = `heatmap_${selectedJob.job_id}.pdf`;
+          blob = await heatmapService.exportHeatmapPdf(selectedJob.job_id);
+          break;
+
+        default:
+          toast.error("Unsupported export format");
+          return;
+      }
+
+      // For CSV and PDF, create and trigger download
+      if (format !== "png") {
+        // Create a blob with the correct MIME type
+        const fileBlob = new Blob([blob], { type: mimeType });
+        
+        // Create a temporary URL for the blob
+        const url = window.URL.createObjectURL(fileBlob);
+        
+        // Create a temporary link element
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        
+        // Append to body, click, and cleanup
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        toast.success(`Heatmap exported as ${format.toUpperCase()}`);
+      }
+    } catch (error) {
+      console.error(`Error exporting heatmap as ${format}:`, error);
+      toast.error(`Failed to export heatmap as ${format.toUpperCase()}`);
     }
   };
 
